@@ -8,14 +8,19 @@ use ethers::{
     types::{Address, H160},
 };
 
+// generate type-safe bindings to contract with ethers-rs
 abigen!(
     AnoncredsRegistryContract,
     "../anoncreds-smart-contracts-js/artifacts/contracts/AnoncredsRegistry.sol/AnoncredsRegistry.json"
 );
 
+// Ethereum RPC of the network to use (defaults to the hardhat local network)
 pub const REGISTRY_RPC: &str = "http://localhost:8545";
-pub const REGISTRY_WETH_ADDRESS: &str = "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e";
+// Address of the `AnoncredsRegistry` smart contract to use
+// (should copy and paste the address value after a hardhat deploy script)
+pub const REGISTRY_WETH_ADDRESS: &str = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
+// Hacked up DID method for ethereum addresses (probably not 100% valid)
 pub fn address_as_did(address: &H160) -> String {
     // note that debug fmt of address is the '0x..' hex encoding.
     // where as .to_string() (fmt) truncates it
