@@ -33,7 +33,7 @@ contract AnoncredsRegistry {
     }
 
     function does_cred_def_exist(address issuer, string memory schema_id, string memory tag) private view returns (bool) {
-        string memory entry = schema_json_by_version_by_name_by_issuer_address[issuer][schema_id][tag];
+        string memory entry = cred_def_json_by_tag_by_schema_id_by_issuer_address[issuer][schema_id][tag];
         return bytes(entry).length != 0;
     }
 
