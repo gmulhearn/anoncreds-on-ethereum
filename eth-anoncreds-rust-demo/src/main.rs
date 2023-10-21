@@ -8,15 +8,17 @@ use anoncreds::{
         schema::{Schema, SchemaId},
     },
     prover::create_presentation,
+    tails::TailsFileWriter,
     types::{
         Credential, CredentialDefinitionConfig, CredentialDefinitionPrivate,
         CredentialKeyCorrectnessProof, LinkSecret, MakeCredentialValues, PresentCredentials,
-        PresentationRequest, SignatureType,
+        PresentationRequest, RegistryType, RevocationRegistryDefinition,
+        RevocationRegistryDefinitionPrivate, SignatureType,
     },
 };
 use anoncreds_eth_registry::{
     address_as_did, get_cred_def, get_schema, submit_cred_def, submit_schema, CredDefIdParts,
-    SchemaIdParts, REGISTRY_RPC,
+    RevRegIdParts, SchemaIdParts, REGISTRY_RPC,
 };
 use dotenv::dotenv;
 use ethers::{
@@ -24,6 +26,8 @@ use ethers::{
     providers::{Http, Provider},
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
+
+use crate::anoncreds_eth_registry::submit_rev_reg_def;
 
 fn get_ethers_client() -> Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>> {
     dotenv().ok();
@@ -65,15 +69,22 @@ async fn full_demo() {
     let (
         schema_id_parts,
         cred_def_id_parts,
+        rev_reg_id_parts,
         _schema,
         cred_def,
         cred_def_private,
         correctness_proof,
+        _rev_reg_def,
+        _rev_reg_def_private,
     ) = issuer_bootstrap_ledger_submissions(&issuer).await;
     let schema_id = schema_id_parts.to_id();
     let cred_def_id = cred_def_id_parts.to_id();
+    let rev_reg_id = rev_reg_id_parts.to_id();
     println!(
-        "Issuer: ledger data created. \n\tSchema ID: {schema_id}. \n\tCred Def ID: {cred_def_id}"
+        "Issuer: ledger data created. \n
+        \tSchema ID: {schema_id}. \n
+        \tCred Def ID: {cred_def_id}. \n
+        \tRev Reg ID: {rev_reg_id}"
     );
 
     // create offer for holder
@@ -245,17 +256,20 @@ async fn issuer_bootstrap_ledger_submissions(
 ) -> (
     SchemaIdParts,
     CredDefIdParts,
+    RevRegIdParts,
     Schema,
     CredentialDefinition,
     CredentialDefinitionPrivate,
     CredentialKeyCorrectnessProof,
+    RevocationRegistryDefinition,
+    RevocationRegistryDefinitionPrivate,
 ) {
     let signer_address = issuer_client.address();
     let issuer_id = address_as_did(&signer_address);
 
     let attr_names: &[&str] = &["name", "age"];
 
-    let schema_name = format!("ChadCertification-{}", uuid::Uuid::new_v4().to_string());
+    let schema_name = format!("MySchema-{}", uuid::Uuid::new_v4().to_string());
     println!("Issuer: creating schema for schema name: {schema_name}...");
     let schema =
         anoncreds::issuer::create_schema(&schema_name, "1.0", issuer_id.clone(), attr_names.into())
@@ -266,10 +280,7 @@ async fn issuer_bootstrap_ledger_submissions(
     let schema_id_parts = submit_schema(&issuer_client, &schema).await;
     let schema_id = schema_id_parts.to_id();
 
-    let cred_def_tag = format!(
-        "BasedChadCertification-{}",
-        uuid::Uuid::new_v4().to_string()
-    );
+    let cred_def_tag = format!("MyCredDef-{}", uuid::Uuid::new_v4().to_string());
     println!("Issuer: creating cred def for tag: {cred_def_tag}...");
     let (cred_def, cred_def_private, correctness_proof) =
         anoncreds::issuer::create_credential_definition(
@@ -278,7 +289,7 @@ async fn issuer_bootstrap_ledger_submissions(
             issuer_id.clone(),
             &cred_def_tag,
             SignatureType::CL,
-            CredentialDefinitionConfig::new(false),
+            CredentialDefinitionConfig::new(true),
         )
         .unwrap();
 
@@ -286,12 +297,34 @@ async fn issuer_bootstrap_ledger_submissions(
     println!("Issuer: submitting cred def...");
     let cred_def_id_parts = submit_cred_def(&issuer_client, &cred_def).await;
 
+    let rev_reg_def_tag = format!("MyRevRegDef-{}", uuid::Uuid::new_v4().to_string());
+    println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
+
+    let mut tw = TailsFileWriter::new(None);
+    let (rev_reg_def, rev_reg_private) = anoncreds::issuer::create_revocation_registry_def(
+        &cred_def,
+        cred_def_id_parts.to_id(),
+        issuer_id,
+        &rev_reg_def_tag,
+        RegistryType::CL_ACCUM,
+        1000,
+        &mut tw,
+    )
+    .unwrap();
+
+    // upload to ledger
+    println!("Issuer: submitting rev reg def...");
+    let rev_reg_id_parts = submit_rev_reg_def(&issuer_client, &rev_reg_def).await;
+
     (
         schema_id_parts,
         cred_def_id_parts,
+        rev_reg_id_parts,
         schema,
         cred_def,
         cred_def_private,
         correctness_proof,
+        rev_reg_def,
+        rev_reg_private,
     )
 }
