@@ -5,19 +5,21 @@ use anoncreds::{
         cred_def::{CredentialDefinition, CredentialDefinitionId},
         schema::{Schema, SchemaId},
     },
-    tails::TailsFileWriter,
+    tails::{TailsFileReader, TailsFileWriter},
     types::{
         Credential, CredentialDefinitionConfig, CredentialDefinitionPrivate,
         CredentialKeyCorrectnessProof, CredentialOffer, CredentialRequest,
-        CredentialRequestMetadata, LinkSecret, MakeCredentialValues, PresentCredentials,
-        Presentation, PresentationRequest, RegistryType, RevocationRegistryDefinition,
-        RevocationRegistryDefinitionPrivate, SignatureType,
+        CredentialRequestMetadata, CredentialRevocationConfig, LinkSecret, MakeCredentialValues,
+        PresentCredentials, Presentation, PresentationRequest, RegistryType,
+        RevocationRegistryDefinition, RevocationRegistryDefinitionPrivate, RevocationStatusList,
+        SignatureType,
     },
 };
 
 use crate::{
     anoncreds_eth_registry::{
-        address_as_did, get_json_resource, submit_json_resource, DIDResourceId,
+        address_as_did, get_json_resource, submit_json_resource, submit_rev_reg_status_update,
+        DIDResourceId,
     },
     EtherSigner,
 };
@@ -129,6 +131,8 @@ impl Holder {
     }
 }
 
+const TAILS_DIR: &str = "tails";
+
 #[allow(unused)]
 pub struct Issuer {
     signer: EtherSigner,
@@ -141,6 +145,7 @@ pub struct Issuer {
     correctness_proof: CredentialKeyCorrectnessProof,
     rev_reg_def: RevocationRegistryDefinition,
     rev_reg_def_private: RevocationRegistryDefinitionPrivate,
+    rev_list: RevocationStatusList,
     protocol_data: IssuerProtocolFlowData,
 }
 
@@ -192,14 +197,15 @@ impl Issuer {
         let rev_reg_def_tag = format!("MyRevRegDef-{}", uuid::Uuid::new_v4().to_string());
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
 
-        let mut tw = TailsFileWriter::new(None);
+        let mut tw = TailsFileWriter::new(Some(String::from(TAILS_DIR)));
+        dbg!(&tw);
         let (rev_reg_def, rev_reg_def_private) = anoncreds::issuer::create_revocation_registry_def(
             &cred_def,
             cred_def_resource_id.to_id(),
-            issuer_id,
+            issuer_id.clone(),
             &rev_reg_def_tag,
             RegistryType::CL_ACCUM,
-            1000,
+            10,
             &mut tw,
         )
         .unwrap();
@@ -208,6 +214,19 @@ impl Issuer {
         println!("Issuer: submitting rev reg def...");
         let rev_reg_def_resource_id =
             submit_json_resource(&signer, &rev_reg_def, "rev_reg_def").await;
+
+        println!("Issuer: creating rev list...");
+        let rev_list = anoncreds::issuer::create_revocation_status_list(
+            rev_reg_def_resource_id.to_id(),
+            &rev_reg_def,
+            issuer_id,
+            None,
+            true,
+        )
+        .unwrap();
+
+        println!("Issuer: submitting rev list initial entry: {rev_list:?}");
+        submit_rev_reg_status_update(&signer, &rev_reg_def_resource_id.to_id(), &rev_list).await;
 
         let schema_id = schema_resource_id.to_id();
         let cred_def_id = cred_def_resource_id.to_id();
@@ -230,6 +249,7 @@ impl Issuer {
             correctness_proof,
             rev_reg_def,
             rev_reg_def_private,
+            rev_list,
             protocol_data: Default::default(),
         }
     }
@@ -257,16 +277,22 @@ impl Issuer {
         credential_values.add_raw("name", name).unwrap();
         credential_values.add_raw("age", age).unwrap();
 
+        let tr = TailsFileReader::new_tails_reader(&self.rev_reg_def.value.tails_location);
+
         anoncreds::issuer::create_credential(
             &self.cred_def,
             &self.cred_def_private,
             &self.protocol_data.cred_offer.as_ref().unwrap(),
             cred_request,
             credential_values.into(),
-            // TODO - rev stuff
-            None,
-            None,
-            None,
+            Some(self.rev_reg_def_resource_id.to_id().try_into().unwrap()),
+            Some(&self.rev_list),
+            Some(CredentialRevocationConfig {
+                reg_def: &self.rev_reg_def,
+                reg_def_private: &self.rev_reg_def_private,
+                registry_idx: 0,
+                tails_reader: tr,
+            }),
         )
         .unwrap()
     }
