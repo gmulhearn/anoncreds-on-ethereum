@@ -78,18 +78,13 @@ async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
 async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
     println!("\n########## PRESENTATION ###########\n");
 
-    // --- VERIFIER ---
     println!("Verifier: Creating presentation request...");
     let from_cred_def = &prover.get_credential().cred_def_id.0;
     let pres_req = verifier.request_presentation(from_cred_def);
 
-    // --- PROVER ----
     println!("Prover: creating presentation...");
     let presentation = prover.present_credential(&pres_req).await;
 
-    //... send over didcomm...
-
-    // --- VERIFIER ----
     println!("Verifier: verifying prover's presentation...");
     let valid = verifier.verify_presentation(&presentation).await;
     println!("Verifier: verified presentation... Verified presentation: {valid}");
