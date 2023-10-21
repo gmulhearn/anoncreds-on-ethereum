@@ -1,25 +1,9 @@
 pub mod anoncreds_eth_registry;
+pub mod roles;
 
-use std::{collections::HashMap, env, sync::Arc};
+use std::{env, sync::Arc};
 
-use anoncreds::{
-    data_types::{
-        cred_def::{CredentialDefinition, CredentialDefinitionId},
-        schema::{Schema, SchemaId},
-    },
-    prover::create_presentation,
-    tails::TailsFileWriter,
-    types::{
-        Credential, CredentialDefinitionConfig, CredentialDefinitionPrivate,
-        CredentialKeyCorrectnessProof, LinkSecret, MakeCredentialValues, PresentCredentials,
-        PresentationRequest, RegistryType, RevocationRegistryDefinition,
-        RevocationRegistryDefinitionPrivate, SignatureType,
-    },
-};
-use anoncreds_eth_registry::{
-    address_as_did, get_cred_def, get_schema, submit_cred_def, submit_schema, CredDefIdParts,
-    RevRegIdParts, SchemaIdParts, REGISTRY_RPC,
-};
+use anoncreds_eth_registry::REGISTRY_RPC;
 use dotenv::dotenv;
 use ethers::{
     prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
@@ -27,7 +11,9 @@ use ethers::{
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
 
-use crate::anoncreds_eth_registry::submit_rev_reg_def;
+use crate::roles::{Holder, Issuer, Verifier};
+
+pub type EtherSigner = Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>;
 
 fn get_ethers_client() -> Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>> {
     dotenv().ok();
@@ -53,278 +39,60 @@ async fn main() {
 
 async fn full_demo() {
     // ------ SETUP CLIENTS ------
+    let signer = get_ethers_client();
+
     println!("Holder: setting up...");
-    let holder = get_ethers_client();
-    let holder_link_secret = anoncreds::prover::create_link_secret().unwrap();
-    let holder_link_secret_id = "1";
-
+    let mut holder = Holder::bootstrap(signer.clone()).await;
     println!("Issuer: setting up...");
-    let issuer = get_ethers_client();
+    let mut issuer = Issuer::bootstrap(signer.clone()).await;
+    println!("Verifier: setting up...");
+    let mut verifier = Verifier::bootstrap(signer.clone());
 
-    println!("\n########## ISSUANCE ###########\n");
+    issuance_demo(&mut holder, &mut issuer).await;
 
-    // ---- ISSUER -----
-    // bootstrap data onto ledger
-    println!("Issuer: setting up ledger data...");
-    let (
-        schema_id_parts,
-        cred_def_id_parts,
-        rev_reg_id_parts,
-        _schema,
-        cred_def,
-        cred_def_private,
-        correctness_proof,
-        _rev_reg_def,
-        _rev_reg_def_private,
-    ) = issuer_bootstrap_ledger_submissions(&issuer).await;
-    let schema_id = schema_id_parts.to_id();
-    let cred_def_id = cred_def_id_parts.to_id();
-    let rev_reg_id = rev_reg_id_parts.to_id();
-    println!(
-        "Issuer: ledger data created. \n
-        \tSchema ID: {schema_id}. \n
-        \tCred Def ID: {cred_def_id}. \n
-        \tRev Reg ID: {rev_reg_id}"
-    );
-
-    // create offer for holder
-    println!("Issuer: creating credential offer...");
-    let cred_offer = anoncreds::issuer::create_credential_offer(
-        schema_id.clone(),
-        cred_def_id.clone(),
-        &correctness_proof,
-    )
-    .unwrap();
-
-    //... send over didcomm...
-
-    // ---- HOLDER -----
-    // fetch cred def from ledger based on offer's ID
-    println!("Holder: fetching cred def from offer...");
-    let holder_fetched_cred_def = get_cred_def(&holder, &cred_offer.cred_def_id.0).await;
-    // create request in response to offer
-    println!("Holder: creating credential request from offer and cred def...");
-    let (cred_request, cred_request_metadata) = anoncreds::prover::create_credential_request(
-        Some(&uuid::Uuid::new_v4().to_string()),
-        None,
-        &holder_fetched_cred_def,
-        &holder_link_secret,
-        &holder_link_secret_id,
-        &cred_offer,
-    )
-    .unwrap();
-
-    //... send over didcomm...
-
-    // ---- ISSUER ----
-    // issue out the credential!
-    println!("Issuer: issuing credential for holder's request...");
-    let mut credential_values = MakeCredentialValues::default();
-    credential_values.add_raw("name", "john").unwrap();
-    credential_values.add_raw("age", "28").unwrap();
-    let issued_credential = anoncreds::issuer::create_credential(
-        &cred_def,
-        &cred_def_private,
-        &cred_offer,
-        &cred_request,
-        credential_values.into(),
-        None,
-        None,
-        None,
-    )
-    .unwrap();
-
-    //... send over didcomm...
-
-    // ---- HOLDER ----
-    // store cred (in memory after processing it)
-    println!("Holder: storing credential from issuer...");
-    let mut holders_stored_credential = issued_credential.try_clone().unwrap();
-    anoncreds::prover::process_credential(
-        &mut holders_stored_credential,
-        &cred_request_metadata,
-        &holder_link_secret,
-        &holder_fetched_cred_def,
-        None,
-    )
-    .unwrap();
-    println!("Holder: Awwww yea, check out my creds: {holders_stored_credential:?}");
-
-    println!("\n########## END OF ISSUANCE ###########\n");
-
-    // now lets present...
-    proof_presentation_demo(
-        &issuer,
-        &holder,
-        cred_def_id,
-        holder_link_secret,
-        holders_stored_credential,
-    )
-    .await
+    let mut prover = holder;
+    presentation_demo(&mut prover, &mut verifier).await;
 }
 
-async fn proof_presentation_demo(
-    _verifier_client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    holder_client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    verifier_cred_def_id: String,
-    holder_link_secret: LinkSecret,
-    holder_cred: Credential,
-) {
+async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
+    println!("\n########## ISSUANCE ###########\n");
+    println!("Issuer: creating credential offer...");
+    let offer = issuer.create_offer();
+
+    println!("Holder: creating credential request from offer...");
+    let request = holder.accept_offer(&offer).await;
+
+    println!("Issuer: issuing credential for holder's request...");
+    let issued_cred = issuer.create_credential(&request, "John Smith", "28");
+
+    println!("Holder: storing credential from issuer...");
+    holder.store_credential(issued_cred).await;
+
+    println!(
+        "Holder: Awwww yea, check out my creds: {:?}",
+        holder.get_credential()
+    );
+    println!("\n########## END OF ISSUANCE ###########\n");
+}
+
+async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
     println!("\n########## PRESENTATION ###########\n");
 
     // --- VERIFIER ---
     println!("Verifier: Creating presentation request...");
-    let nonce = anoncreds::verifier::generate_nonce().unwrap();
-    let pres_req: PresentationRequest = serde_json::from_value(serde_json::json!({
-        "nonce": nonce,
-        "name":"example_presentation_request",
-        "version":"0.1",
-        "requested_attributes":{
-            "reft1":{
-                "name":"age",
-                "restrictions": {
-                    "cred_def_id": verifier_cred_def_id
-                }
-            },
-        },
-    }))
-    .unwrap();
-
-    //... send over didcomm...
+    let from_cred_def = &prover.get_credential().cred_def_id.0;
+    let pres_req = verifier.request_presentation(from_cred_def);
 
     // --- PROVER ----
-    println!("Prover: constructing data for proof...");
-
-    // construct data from ledger
-    // construct schemas
-    println!("Prover: fetching schema for my credential from ledger...");
-    let mut schemas: HashMap<&SchemaId, &Schema> = HashMap::new();
-    let schema_for_cred = get_schema(holder_client, &holder_cred.schema_id.0).await;
-    schemas.insert(&holder_cred.schema_id, &schema_for_cred);
-
-    // construct cred defs
-    println!("Prover: fetching cred def for my credential from ledger...");
-    let mut cred_defs: HashMap<&CredentialDefinitionId, &CredentialDefinition> = HashMap::new();
-    let cred_def_for_cred = get_cred_def(holder_client, &holder_cred.cred_def_id.0).await;
-    cred_defs.insert(&holder_cred.cred_def_id, &cred_def_for_cred);
-
-    // specify creds to use for referents
-    let mut creds_to_present = PresentCredentials::default();
-    let mut added_cred = creds_to_present.add_credential(&holder_cred, None, None);
-    added_cred.add_requested_attribute("reft1", true);
-
     println!("Prover: creating presentation...");
-    let presentation = create_presentation(
-        &pres_req,
-        creds_to_present,
-        None,
-        &holder_link_secret,
-        &schemas,
-        &cred_defs,
-    )
-    .unwrap();
+    let presentation = prover.present_credential(&pres_req).await;
 
     //... send over didcomm...
 
     // --- VERIFIER ----
-    // construct data from ledger
-    // technically the verifier should be fetching from the ledger here to
-    // construct `schemas` and `cred_defs`... but you get the point, so we just reuse the holder's data.
-    println!("Verifier: fetching schema for presented identifier from ledger...");
-    let schemas = schemas;
-    println!("Verifier: fetching cred def for presented identifier from ledger...");
-    let cred_defs = cred_defs;
-
     println!("Verifier: verifying prover's presentation...");
-    let valid = anoncreds::verifier::verify_presentation(
-        &presentation,
-        &pres_req,
-        &schemas,
-        &cred_defs,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    let valid = verifier.verify_presentation(&presentation).await;
     println!("Verifier: verified presentation... Verified presentation: {valid}");
 
     println!("\n########## END OF PRESENTATION ###########\n");
-}
-
-async fn issuer_bootstrap_ledger_submissions(
-    issuer_client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-) -> (
-    SchemaIdParts,
-    CredDefIdParts,
-    RevRegIdParts,
-    Schema,
-    CredentialDefinition,
-    CredentialDefinitionPrivate,
-    CredentialKeyCorrectnessProof,
-    RevocationRegistryDefinition,
-    RevocationRegistryDefinitionPrivate,
-) {
-    let signer_address = issuer_client.address();
-    let issuer_id = address_as_did(&signer_address);
-
-    let attr_names: &[&str] = &["name", "age"];
-
-    let schema_name = format!("MySchema-{}", uuid::Uuid::new_v4().to_string());
-    println!("Issuer: creating schema for schema name: {schema_name}...");
-    let schema =
-        anoncreds::issuer::create_schema(&schema_name, "1.0", issuer_id.clone(), attr_names.into())
-            .unwrap();
-
-    // upload to ledger
-    println!("Issuer: submitting schema...");
-    let schema_id_parts = submit_schema(&issuer_client, &schema).await;
-    let schema_id = schema_id_parts.to_id();
-
-    let cred_def_tag = format!("MyCredDef-{}", uuid::Uuid::new_v4().to_string());
-    println!("Issuer: creating cred def for tag: {cred_def_tag}...");
-    let (cred_def, cred_def_private, correctness_proof) =
-        anoncreds::issuer::create_credential_definition(
-            schema_id.clone(),
-            &schema,
-            issuer_id.clone(),
-            &cred_def_tag,
-            SignatureType::CL,
-            CredentialDefinitionConfig::new(true),
-        )
-        .unwrap();
-
-    // upload to ledger
-    println!("Issuer: submitting cred def...");
-    let cred_def_id_parts = submit_cred_def(&issuer_client, &cred_def).await;
-
-    let rev_reg_def_tag = format!("MyRevRegDef-{}", uuid::Uuid::new_v4().to_string());
-    println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
-
-    let mut tw = TailsFileWriter::new(None);
-    let (rev_reg_def, rev_reg_private) = anoncreds::issuer::create_revocation_registry_def(
-        &cred_def,
-        cred_def_id_parts.to_id(),
-        issuer_id,
-        &rev_reg_def_tag,
-        RegistryType::CL_ACCUM,
-        1000,
-        &mut tw,
-    )
-    .unwrap();
-
-    // upload to ledger
-    println!("Issuer: submitting rev reg def...");
-    let rev_reg_id_parts = submit_rev_reg_def(&issuer_client, &rev_reg_def).await;
-
-    (
-        schema_id_parts,
-        cred_def_id_parts,
-        rev_reg_id_parts,
-        schema,
-        cred_def,
-        cred_def_private,
-        correctness_proof,
-        rev_reg_def,
-        rev_reg_private,
-    )
 }
