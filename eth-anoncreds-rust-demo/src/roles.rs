@@ -17,8 +17,7 @@ use anoncreds::{
 
 use crate::{
     anoncreds_eth_registry::{
-        address_as_did, get_cred_def, get_schema, submit_cred_def, submit_rev_reg_def,
-        submit_schema, CredDefIdParts, RevRegIdParts, SchemaIdParts,
+        address_as_did, get_json_resource, submit_json_resource, DIDResourceId,
     },
     EtherSigner,
 };
@@ -51,13 +50,13 @@ impl Holder {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        get_schema(&self.signer, schema_id).await
+        get_json_resource(&self.signer, schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        get_cred_def(&self.signer, cred_def_id).await
+        get_json_resource(&self.signer, cred_def_id).await
     }
 
     pub async fn accept_offer(&mut self, cred_offer: &CredentialOffer) -> CredentialRequest {
@@ -133,9 +132,9 @@ impl Holder {
 #[allow(unused)]
 pub struct Issuer {
     signer: EtherSigner,
-    schema_id_parts: SchemaIdParts,
-    cred_def_id_parts: CredDefIdParts,
-    rev_reg_id_parts: RevRegIdParts,
+    schema_resource_id: DIDResourceId,
+    cred_def_resource_id: DIDResourceId,
+    rev_reg_def_resource_id: DIDResourceId,
     schema: Schema,
     cred_def: CredentialDefinition,
     cred_def_private: CredentialDefinitionPrivate,
@@ -170,8 +169,8 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting schema...");
-        let schema_id_parts = submit_schema(&signer, &schema).await;
-        let schema_id = schema_id_parts.to_id();
+        let schema_resource_id = submit_json_resource(&signer, &schema, "schema").await;
+        let schema_id = schema_resource_id.to_id();
 
         let cred_def_tag = format!("MyCredDef-{}", uuid::Uuid::new_v4().to_string());
         println!("Issuer: creating cred def for tag: {cred_def_tag}...");
@@ -188,7 +187,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting cred def...");
-        let cred_def_id_parts = submit_cred_def(&signer, &cred_def).await;
+        let cred_def_resource_id = submit_json_resource(&signer, &cred_def, "cred_def").await;
 
         let rev_reg_def_tag = format!("MyRevRegDef-{}", uuid::Uuid::new_v4().to_string());
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
@@ -196,7 +195,7 @@ impl Issuer {
         let mut tw = TailsFileWriter::new(None);
         let (rev_reg_def, rev_reg_def_private) = anoncreds::issuer::create_revocation_registry_def(
             &cred_def,
-            cred_def_id_parts.to_id(),
+            cred_def_resource_id.to_id(),
             issuer_id,
             &rev_reg_def_tag,
             RegistryType::CL_ACCUM,
@@ -207,11 +206,12 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting rev reg def...");
-        let rev_reg_id_parts = submit_rev_reg_def(&signer, &rev_reg_def).await;
+        let rev_reg_def_resource_id =
+            submit_json_resource(&signer, &rev_reg_def, "rev_reg_def").await;
 
-        let schema_id = schema_id_parts.to_id();
-        let cred_def_id = cred_def_id_parts.to_id();
-        let rev_reg_id = rev_reg_id_parts.to_id();
+        let schema_id = schema_resource_id.to_id();
+        let cred_def_id = cred_def_resource_id.to_id();
+        let rev_reg_id = rev_reg_def_resource_id.to_id();
         println!(
             "Issuer: ledger data created. \n
             \tSchema ID: {schema_id}. \n
@@ -221,9 +221,9 @@ impl Issuer {
 
         Self {
             signer,
-            schema_id_parts,
-            cred_def_id_parts,
-            rev_reg_id_parts,
+            schema_resource_id,
+            cred_def_resource_id,
+            rev_reg_def_resource_id,
             schema,
             cred_def,
             cred_def_private,
@@ -236,8 +236,8 @@ impl Issuer {
 
     pub fn create_offer(&mut self) -> CredentialOffer {
         let offer = anoncreds::issuer::create_credential_offer(
-            self.schema_id_parts.to_id(),
-            self.cred_def_id_parts.to_id(),
+            self.schema_resource_id.to_id(),
+            self.cred_def_resource_id.to_id(),
             &self.correctness_proof,
         )
         .unwrap();
@@ -293,13 +293,13 @@ impl Verifier {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        get_schema(&self.signer, schema_id).await
+        get_json_resource(&self.signer, schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        get_cred_def(&self.signer, cred_def_id).await
+        get_json_resource(&self.signer, cred_def_id).await
     }
 
     pub fn request_presentation(&mut self, from_cred_def: &str) -> PresentationRequest {

@@ -6,6 +6,9 @@ pragma solidity ^0.8.9;
 
 contract AnoncredsRegistry {
 
+    // storage of string blobs, which are immutable once uploaded, and identified by it's ID + Author
+    mapping(address => mapping(string => string)) immutableResourceByIdByAuthorAddress;
+
     mapping(address => mapping(string => mapping(string => string))) schemaJsonByVersionByNameByIssuerAddress;
     mapping(address => mapping(string => mapping(string => string))) credDefJsonByTagBySchemaIdByIssuerAddress;
     mapping(address => mapping(string => mapping(string => string))) revRegDefJsonByTagByCredDefIdByIssuerAddress;
@@ -23,12 +26,30 @@ contract AnoncredsRegistry {
     // note that by issuer (address =>) is only needed for security purposes
     mapping(address => mapping(string => RevocationStatusList[])) revStatusListsByRevRegIdByIssuer;
 
+    event NewResource(address issuer, string id);
     event NewSchema(address issuer, string name, string version);
     event NewCredDef(address issuer, string schema_id, string tag);
     event NewRevRegDef(address issuer, string cred_def_id, string tag);
     event NewRevRegStatusUpdate(string rev_reg_id, uint index_in_status_list, uint timestamp);
 
     constructor() {
+    }
+
+    function does_immutable_resource_exist(address author, string memory id) private view returns (bool) {
+        string memory resource = immutableResourceByIdByAuthorAddress[author][id];
+        return bytes(resource).length != 0;
+    }
+
+    function create_immutable_resource(string memory id, string memory content) public {
+        address author = msg.sender;
+
+        require(!does_immutable_resource_exist(author, id), "Resource already created with this ID and author");
+        immutableResourceByIdByAuthorAddress[author][id] = content;
+        emit NewResource(author, id);
+    }
+
+    function get_immutable_resource(address author, string memory id) public view returns (string memory) {
+        return immutableResourceByIdByAuthorAddress[author][id];
     }
 
     function does_schema_exist(address issuer, string memory name, string memory version) private view returns (bool) {

@@ -1,18 +1,15 @@
 use std::sync::Arc;
 
-use anoncreds::{
-    data_types::{
-        cred_def::CredentialDefinition, rev_status_list::serde_revocation_list, schema::Schema,
-    },
-    types::RevocationRegistryDefinition,
-};
+use anoncreds::data_types::rev_status_list::serde_revocation_list;
 use ethers::{
     prelude::{abigen, k256::ecdsa::SigningKey, SignerMiddleware},
     providers::{Http, Provider},
     signers::Wallet,
     types::{Address, H160},
 };
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
+use uuid::Uuid;
 
 // generate type-safe bindings to contract with ethers-rs
 abigen!(
@@ -34,225 +31,85 @@ pub fn address_as_did(address: &H160) -> String {
 }
 
 #[derive(Debug)]
-pub struct SchemaIdParts {
-    pub issuer_pub_key: H160,
-    pub name: String,
-    pub version: String,
+pub struct DIDResourceId {
+    pub author_pub_key: H160,
+    pub resource_path: String,
 }
 
-impl SchemaIdParts {
-    pub fn from_id(schema_id: String) -> Self {
-        let parts: Vec<&str> = schema_id.split(":").collect();
+impl DIDResourceId {
+    pub fn from_id(id: String) -> Self {
+        let Some((did, resource_path)) = id.split_once("/") else {
+            panic!("Could not process as DID Resource: {id}")
+        };
 
-        let issuer = parts[2];
-        let issuer_pub_key = issuer.parse().unwrap();
+        let author = did
+            .split(":")
+            .last()
+            .expect(&format!("Could not read find author of DID: {did}"));
+        let author_pub_key = author.parse().unwrap();
 
-        let name = String::from(parts[4]);
-
-        let version = String::from(parts[5]);
-
-        SchemaIdParts {
-            issuer_pub_key,
-            name,
-            version,
+        DIDResourceId {
+            author_pub_key,
+            resource_path: resource_path.to_owned(),
         }
     }
 
     pub fn to_id(&self) -> String {
-        let did = address_as_did(&self.issuer_pub_key);
-        format!("{}:schema:{}:{}", did, self.name, self.version)
+        let did = address_as_did(&self.author_pub_key);
+        format!("{}/{}", did, self.resource_path)
     }
 }
 
-pub async fn submit_schema(
+pub async fn submit_json_resource<S>(
     client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    schema: &Schema,
-) -> SchemaIdParts {
-    let schema_json = serde_json::to_string(schema).unwrap();
-
+    resource: &S,
+    parent_path: &str,
+) -> DIDResourceId
+where
+    S: Serialize,
+{
+    let resource_json = serde_json::to_string(resource).unwrap();
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
     let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
 
-    let name = schema.name.clone();
-    let version = schema.version.clone();
+    let resource_path = format!("{parent_path}/{}", Uuid::new_v4());
 
     contract
-        .create_schema(name.clone(), version.clone(), schema_json)
+        .create_immutable_resource(resource_path.clone(), resource_json)
         .send()
         .await
         .unwrap()
         .await
         .unwrap();
 
-    SchemaIdParts {
-        issuer_pub_key: client.address(),
-        name,
-        version,
+    DIDResourceId {
+        author_pub_key: client.address(),
+        resource_path,
     }
 }
 
-pub async fn get_schema(
+pub async fn get_json_resource<D>(
     client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    schema_id: &str,
-) -> Schema {
+    resource_id: &str,
+) -> D
+where
+    D: DeserializeOwned,
+{
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
     let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
 
-    let schema_id_parts = SchemaIdParts::from_id(schema_id.to_owned());
+    let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
 
-    let schema_json: String = contract
-        .get_schema(
-            schema_id_parts.issuer_pub_key,
-            schema_id_parts.name,
-            schema_id_parts.version,
+    let resource_json: String = contract
+        .get_immutable_resource(
+            did_resource_parts.author_pub_key,
+            did_resource_parts.resource_path,
         )
         .call()
         .await
         .unwrap();
 
-    serde_json::from_str(&schema_json).unwrap()
-}
-
-#[derive(Debug)]
-pub struct CredDefIdParts {
-    pub issuer_pub_key: H160,
-    pub tag: String,
-    pub schema_id: String,
-}
-
-impl CredDefIdParts {
-    // super panicy!
-    pub fn from_id(cred_def_id: String) -> Self {
-        let parts: Vec<&str> = cred_def_id.split(":").collect();
-
-        let issuer = parts[2];
-        let issuer_pub_key = issuer.parse().unwrap();
-
-        let tag = String::from(parts[4]);
-
-        // everything else, == schema_id
-        let schema_id = parts[5..].join(":");
-
-        CredDefIdParts {
-            issuer_pub_key,
-            tag,
-            schema_id,
-        }
-    }
-
-    pub fn to_id(&self) -> String {
-        let did = address_as_did(&self.issuer_pub_key);
-        format!("{}:creddef:{}:{}", did, self.tag, self.schema_id)
-    }
-}
-
-pub async fn submit_cred_def(
-    client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    cred_def: &CredentialDefinition,
-) -> CredDefIdParts {
-    let cred_def_json = serde_json::to_string(cred_def).unwrap();
-
-    let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
-
-    let schema_id = cred_def.schema_id.0.clone();
-    let tag = cred_def.tag.clone();
-
-    contract
-        .create_cred_def(schema_id.clone(), tag.clone(), cred_def_json)
-        .send()
-        .await
-        .unwrap()
-        .await
-        .unwrap();
-
-    CredDefIdParts {
-        issuer_pub_key: client.address(),
-        tag,
-        schema_id,
-    }
-}
-
-pub async fn get_cred_def(
-    client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    cred_def_id: &str,
-) -> CredentialDefinition {
-    let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
-
-    let cred_def_parts = CredDefIdParts::from_id(cred_def_id.to_owned());
-
-    let cred_def_json: String = contract
-        .get_cred_def(
-            cred_def_parts.issuer_pub_key,
-            cred_def_parts.schema_id,
-            cred_def_parts.tag,
-        )
-        .call()
-        .await
-        .unwrap();
-
-    serde_json::from_str(&cred_def_json).unwrap()
-}
-
-#[derive(Debug)]
-pub struct RevRegIdParts {
-    pub issuer_pub_key: H160,
-    pub tag: String,
-    pub cred_def_id: String,
-}
-
-impl RevRegIdParts {
-    // super panicy!
-    pub fn from_id(rev_reg_id: String) -> Self {
-        let parts: Vec<&str> = rev_reg_id.split(":").collect();
-
-        let issuer = parts[2];
-        let issuer_pub_key = issuer.parse().unwrap();
-
-        let tag = String::from(parts[4]);
-
-        // everything else, == cred_def_id
-        let cred_def_id = parts[5..].join(":");
-
-        RevRegIdParts {
-            issuer_pub_key,
-            tag,
-            cred_def_id,
-        }
-    }
-
-    pub fn to_id(&self) -> String {
-        let did = address_as_did(&self.issuer_pub_key);
-        format!("{}:rev_reg:{}:{}", did, self.tag, self.cred_def_id)
-    }
-}
-
-pub async fn submit_rev_reg_def(
-    client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    rev_reg_def: &RevocationRegistryDefinition,
-) -> RevRegIdParts {
-    let rev_reg_def_json = serde_json::to_string(rev_reg_def).unwrap();
-
-    let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
-
-    let cred_def_id = rev_reg_def.cred_def_id.0.clone();
-    let tag = rev_reg_def.tag.clone();
-
-    contract
-        .create_rev_reg_def(cred_def_id.clone(), tag.clone(), rev_reg_def_json)
-        .send()
-        .await
-        .unwrap()
-        .await
-        .unwrap();
-
-    RevRegIdParts {
-        issuer_pub_key: client.address(),
-        tag,
-        cred_def_id,
-    }
+    serde_json::from_str(&resource_json).unwrap()
 }
 
 pub async fn submit_rev_reg_status_update(
