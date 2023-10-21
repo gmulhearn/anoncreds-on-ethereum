@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use anoncreds::{
     data_types::{
         cred_def::{CredentialDefinition, CredentialDefinitionId},
+        rev_reg_def::RevocationRegistryDefinitionId,
         schema::{Schema, SchemaId},
     },
+    prover::create_or_update_revocation_state,
     tails::{TailsFileReader, TailsFileWriter},
     types::{
         Credential, CredentialDefinitionConfig, CredentialDefinitionPrivate,
@@ -18,9 +20,10 @@ use anoncreds::{
 
 use crate::{
     anoncreds_eth_registry::{
-        address_as_did, get_json_resource, submit_json_resource, submit_rev_reg_status_update,
-        DIDResourceId,
+        address_as_did, get_json_resource, get_rev_reg_status_list_as_of_timestamp,
+        submit_json_resource, submit_rev_reg_status_update, DIDResourceId,
     },
+    utils::get_epoch_secs,
     EtherSigner,
 };
 
@@ -117,6 +120,67 @@ impl Holder {
         // specify creds to use for referents
         let mut creds_to_present = PresentCredentials::default();
         let mut added_cred = creds_to_present.add_credential(&holder_cred, None, None);
+        added_cred.add_requested_attribute("reft1", true);
+
+        anoncreds::prover::create_presentation(
+            presentation_request,
+            creds_to_present,
+            None,
+            &self.link_secret,
+            &schemas,
+            &cred_defs,
+        )
+        .unwrap()
+    }
+
+    pub async fn present_credential_with_nrp(
+        &self,
+        presentation_request: &PresentationRequest,
+    ) -> Presentation {
+        let holder_cred = self.protocol_data.stored_credential.as_ref().unwrap();
+
+        // construct schemas
+        let mut schemas: HashMap<&SchemaId, &Schema> = HashMap::new();
+        let schema_for_cred = self.fetch_schema(&holder_cred.schema_id.0).await;
+        schemas.insert(&holder_cred.schema_id, &schema_for_cred);
+
+        // construct cred defs
+        let mut cred_defs: HashMap<&CredentialDefinitionId, &CredentialDefinition> = HashMap::new();
+        let cred_def_for_cred = self.fetch_cred_def(&holder_cred.cred_def_id.0).await;
+        cred_defs.insert(&holder_cred.cred_def_id, &cred_def_for_cred);
+
+        // construct rev_state
+        let rev_reg_def: RevocationRegistryDefinition =
+            get_json_resource(&self.signer, &holder_cred.rev_reg_id.as_ref().unwrap().0).await;
+        let requested_nrp_timestamp = presentation_request
+            .value()
+            .non_revoked
+            .as_ref()
+            .unwrap()
+            .to
+            .unwrap();
+        let rev_reg_id = &holder_cred.rev_reg_id.as_ref().unwrap().0;
+        let (rev_status_list, update_timestamp) = get_rev_reg_status_list_as_of_timestamp(
+            &self.signer,
+            rev_reg_id,
+            requested_nrp_timestamp,
+        )
+        .await;
+        let rev_reg_idx = holder_cred.signature.extract_index().unwrap();
+        let rev_state = create_or_update_revocation_state(
+            &rev_reg_def.value.tails_location,
+            &rev_reg_def,
+            &rev_status_list,
+            rev_reg_idx,
+            None,
+            None,
+        )
+        .unwrap();
+
+        // specify creds to use for referents
+        let mut creds_to_present = PresentCredentials::default();
+        let mut added_cred =
+            creds_to_present.add_credential(&holder_cred, Some(update_timestamp), Some(&rev_state));
         added_cred.add_requested_attribute("reft1", true);
 
         anoncreds::prover::create_presentation(
@@ -296,6 +360,30 @@ impl Issuer {
         )
         .unwrap()
     }
+
+    pub async fn revoke_credential(&mut self) {
+        // NOTE - these lists seem to be the delta (i.e. changes to be made) rather than complete list
+        let mut revoked: BTreeSet<u32> = BTreeSet::new();
+        revoked.insert(0);
+
+        let new_list = anoncreds::issuer::update_revocation_status_list(
+            None,
+            None,
+            Some(revoked),
+            &self.rev_reg_def,
+            &self.rev_list,
+        )
+        .unwrap();
+
+        submit_rev_reg_status_update(
+            &self.signer,
+            &self.rev_reg_def_resource_id.to_id(),
+            &new_list,
+        )
+        .await;
+
+        self.rev_list = new_list;
+    }
 }
 
 pub struct Verifier {
@@ -351,6 +439,34 @@ impl Verifier {
         serde_json::from_value(proof_req_raw).unwrap()
     }
 
+    pub fn request_presentation_with_nrp(&mut self, from_cred_def: &str) -> PresentationRequest {
+        let nonce = anoncreds::verifier::generate_nonce().unwrap();
+
+        let current_epoch = get_epoch_secs();
+
+        let proof_req_raw = serde_json::json!({
+            "nonce": nonce,
+            "name":"example_presentation_request",
+            "version":"0.1",
+            "requested_attributes":{
+                "reft1":{
+                    "name":"age",
+                    "restrictions": {
+                        "cred_def_id": from_cred_def
+                    },
+                },
+            },
+            "non_revoked": {
+                "to": current_epoch
+            }
+        });
+
+        self.protocol_data.proof_request =
+            Some(serde_json::from_value(proof_req_raw.clone()).unwrap());
+
+        serde_json::from_value(proof_req_raw).unwrap()
+    }
+
     pub async fn verify_presentation(&self, presentation: &Presentation) -> bool {
         let anoncred_resources_ids = presentation.identifiers.first().unwrap();
         let schema_id = &anoncred_resources_ids.schema_id;
@@ -373,6 +489,49 @@ impl Verifier {
             &cred_defs,
             None,
             None,
+            None,
+        )
+        .unwrap()
+    }
+
+    pub async fn verify_presentation_with_nrp(&self, presentation: &Presentation) -> bool {
+        let anoncred_resources_ids = presentation.identifiers.first().unwrap();
+        let schema_id = &anoncred_resources_ids.schema_id;
+        let cred_def_id = &anoncred_resources_ids.cred_def_id;
+        let rev_reg_id = anoncred_resources_ids.rev_reg_id.clone().unwrap().0;
+        let presented_timestamp = anoncred_resources_ids.timestamp.unwrap();
+
+        // construct schemas
+        let mut schemas: HashMap<&SchemaId, &Schema> = HashMap::new();
+        let schema_for_cred = self.fetch_schema(&schema_id.0).await;
+        schemas.insert(&schema_id, &schema_for_cred);
+
+        // construct cred defs
+        let mut cred_defs: HashMap<&CredentialDefinitionId, &CredentialDefinition> = HashMap::new();
+        let cred_def_for_cred = self.fetch_cred_def(&cred_def_id.0).await;
+        cred_defs.insert(&cred_def_id, &cred_def_for_cred);
+
+        // construct rev info
+        let rev_status_list =
+            get_rev_reg_status_list_as_of_timestamp(&self.signer, &rev_reg_id, presented_timestamp)
+                .await
+                .0;
+        let mut rev_reg_defs: HashMap<
+            &RevocationRegistryDefinitionId,
+            &RevocationRegistryDefinition,
+        > = HashMap::new();
+        let rev_reg_def_for_cred = get_json_resource(&self.signer, &rev_reg_id).await;
+        // re-typing from RevocationRegistryId to RevocationRegistryDefinitionId?! seems to be the same thing?
+        let rev_reg_def_id = rev_reg_id.try_into().unwrap();
+        rev_reg_defs.insert(&rev_reg_def_id, &rev_reg_def_for_cred);
+
+        anoncreds::verifier::verify_presentation(
+            presentation,
+            self.protocol_data.proof_request.as_ref().unwrap(),
+            &schemas,
+            &cred_defs,
+            Some(&rev_reg_defs),
+            Some(vec![&rev_status_list]),
             None,
         )
         .unwrap()

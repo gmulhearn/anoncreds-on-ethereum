@@ -1,5 +1,6 @@
 pub mod anoncreds_eth_registry;
 pub mod roles;
+pub mod utils;
 
 use std::{env, sync::Arc};
 
@@ -51,7 +52,10 @@ async fn full_demo() {
     issuance_demo(&mut holder, &mut issuer).await;
 
     let mut prover = holder;
-    presentation_demo(&mut prover, &mut verifier).await;
+    presentation_demo_with_nrp(&mut prover, &mut verifier).await;
+    // presentation_demo(&mut prover, &mut verifier).await;
+
+    // issuer.revoke_credential().await;
 }
 
 async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
@@ -75,7 +79,7 @@ async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
     println!("\n########## END OF ISSUANCE ###########\n");
 }
 
-async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
+async fn _presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
     println!("\n########## PRESENTATION ###########\n");
 
     println!("Verifier: Creating presentation request...");
@@ -87,6 +91,23 @@ async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
 
     println!("Verifier: verifying prover's presentation...");
     let valid = verifier.verify_presentation(&presentation).await;
+    println!("Verifier: verified presentation... Verified presentation: {valid}");
+
+    println!("\n########## END OF PRESENTATION ###########\n");
+}
+
+async fn presentation_demo_with_nrp(prover: &mut Holder, verifier: &mut Verifier) {
+    println!("\n########## PRESENTATION ###########\n");
+
+    println!("Verifier: Creating presentation request...");
+    let from_cred_def = &prover.get_credential().cred_def_id.0;
+    let pres_req = verifier.request_presentation_with_nrp(from_cred_def);
+
+    println!("Prover: creating presentation...");
+    let presentation = prover.present_credential_with_nrp(&pres_req).await;
+
+    println!("Verifier: verifying prover's presentation...");
+    let valid = verifier.verify_presentation_with_nrp(&presentation).await;
     println!("Verifier: verified presentation... Verified presentation: {valid}");
 
     println!("\n########## END OF PRESENTATION ###########\n");

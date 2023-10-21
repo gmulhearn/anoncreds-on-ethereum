@@ -5,10 +5,10 @@ use ethers::{
     prelude::{abigen, k256::ecdsa::SigningKey, SignerMiddleware},
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address, H160},
+    types::{Address, H160, U256},
 };
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
 // generate type-safe bindings to contract with ethers-rs
@@ -55,8 +55,12 @@ impl DIDResourceId {
     }
 
     pub fn to_id(&self) -> String {
-        let did = address_as_did(&self.author_pub_key);
+        let did = self.author_did();
         format!("{}/{}", did, self.resource_path)
+    }
+
+    pub fn author_did(&self) -> String {
+        address_as_did(&self.author_pub_key)
     }
 }
 
@@ -143,4 +147,56 @@ pub async fn submit_rev_reg_status_update(
         .unwrap()
         .await
         .unwrap();
+}
+
+pub async fn get_rev_reg_status_list_as_of_timestamp(
+    client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+    rev_reg_id: &str,
+    timestamp: u64,
+) -> (anoncreds::types::RevocationStatusList, u64) {
+    let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
+    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
+
+    let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
+
+    let all_timestamps: Vec<U256> = contract
+        .get_rev_reg_update_timestamps(rev_reg_resource_id.author_pub_key, String::from(rev_reg_id))
+        .call()
+        .await
+        .unwrap();
+
+    if all_timestamps.is_empty() {
+        panic!("No rev entries for rev reg: {rev_reg_id}")
+    }
+
+    // TODO - here we might binary search rather than iter all
+    let index_of_entry = all_timestamps
+        .iter()
+        .position(|ts| ts > &U256::from(timestamp))
+        .unwrap_or(all_timestamps.len())
+        - 1;
+    let timestamp_of_entry = all_timestamps[index_of_entry].as_u64();
+
+    let entry: anoncreds_registry_contract::RevocationStatusList = contract
+        .get_rev_reg_update_at_index(
+            rev_reg_resource_id.author_pub_key,
+            String::from(rev_reg_id),
+            U256::from(index_of_entry),
+        )
+        .call()
+        .await
+        .unwrap();
+
+    let rev_list = serde_json::from_str(&entry.revocation_list).unwrap();
+    let current_accumulator = serde_json::from_value(json!(&entry.current_accumulator)).unwrap();
+
+    let rev_list = anoncreds::types::RevocationStatusList::new(
+        Some(rev_reg_id),
+        rev_reg_resource_id.author_did().try_into().unwrap(),
+        rev_list,
+        Some(current_accumulator),
+        Some(timestamp_of_entry),
+    )
+    .unwrap();
+    (rev_list, timestamp_of_entry)
 }
