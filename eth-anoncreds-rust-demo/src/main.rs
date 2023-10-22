@@ -4,12 +4,12 @@ pub mod utils;
 
 use std::{env, sync::Arc, time::Duration};
 
-use anoncreds_eth_registry::REGISTRY_RPC;
+use anoncreds_eth_registry::{EtherSigner, REGISTRY_RPC};
 use dotenv::dotenv;
 use ethers::{
-    prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
+    prelude::SignerMiddleware,
     providers::{Http, Provider},
-    signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
+    signers::{coins_bip39::English, MnemonicBuilder, Signer},
 };
 use tokio::time::sleep;
 
@@ -18,9 +18,9 @@ use crate::{
     utils::get_epoch_secs,
 };
 
-pub type EtherSigner = Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>;
+pub type ArcEtherSigner = Arc<EtherSigner>;
 
-fn get_ethers_client() -> Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>> {
+fn get_ethers_client() -> Arc<EtherSigner> {
     dotenv().ok();
 
     let seed = env::var("MNEMONIC").unwrap();

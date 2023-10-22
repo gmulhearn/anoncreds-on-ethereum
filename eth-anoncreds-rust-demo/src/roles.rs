@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use anoncreds::{
     data_types::{
@@ -20,11 +23,8 @@ use anoncreds::{
 };
 
 use crate::{
-    anoncreds_eth_registry::{
-        address_as_did, get_json_resource, get_rev_reg_status_list_as_of_timestamp,
-        submit_json_resource, submit_rev_reg_status_update, DIDResourceId,
-    },
-    EtherSigner,
+    anoncreds_eth_registry::{address_as_did, AnoncredsEthRegistry, DIDResourceId, EtherSigner},
+    ArcEtherSigner,
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -33,7 +33,7 @@ use crate::{
 const CRED_REV_ID: u32 = 1;
 
 pub struct Holder {
-    signer: EtherSigner,
+    registry: AnoncredsEthRegistry,
     link_secret: LinkSecret,
     link_secret_id: String,
     protocol_data: HolderProtocolFlowData,
@@ -46,11 +46,12 @@ pub struct HolderProtocolFlowData {
 }
 
 impl Holder {
-    pub async fn bootstrap(signer: EtherSigner) -> Self {
+    pub async fn bootstrap(signer: Arc<EtherSigner>) -> Self {
         let link_secret = anoncreds::prover::create_link_secret().unwrap();
+        let registry = AnoncredsEthRegistry::new(signer);
 
         Holder {
-            signer,
+            registry,
             link_secret,
             link_secret_id: String::from("main"),
             protocol_data: Default::default(),
@@ -60,13 +61,13 @@ impl Holder {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        get_json_resource(&self.signer, schema_id).await
+        self.registry.get_json_resource(schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        get_json_resource(&self.signer, cred_def_id).await
+        self.registry.get_json_resource(cred_def_id).await
     }
 
     pub async fn accept_offer(&mut self, cred_offer: &CredentialOffer) -> CredentialRequest {
@@ -89,8 +90,10 @@ impl Holder {
 
     pub async fn store_credential(&mut self, mut credential: Credential) {
         let fetched_cred_def = self.fetch_cred_def(&credential.cred_def_id.0).await;
-        let fetched_rev_reg_def: RevocationRegistryDefinition =
-            get_json_resource(&self.signer, &credential.rev_reg_id.as_ref().unwrap().0).await;
+        let fetched_rev_reg_def: RevocationRegistryDefinition = self
+            .registry
+            .get_json_resource(&credential.rev_reg_id.as_ref().unwrap().0)
+            .await;
 
         anoncreds::prover::process_credential(
             &mut credential,
@@ -157,8 +160,10 @@ impl Holder {
         cred_defs.insert(&holder_cred.cred_def_id, &cred_def_for_cred);
 
         // construct rev_state
-        let rev_reg_def: RevocationRegistryDefinition =
-            get_json_resource(&self.signer, &holder_cred.rev_reg_id.as_ref().unwrap().0).await;
+        let rev_reg_def: RevocationRegistryDefinition = self
+            .registry
+            .get_json_resource(&holder_cred.rev_reg_id.as_ref().unwrap().0)
+            .await;
         let requested_nrp_timestamp = presentation_request
             .value()
             .non_revoked
@@ -167,12 +172,10 @@ impl Holder {
             .to
             .unwrap();
         let rev_reg_id = &holder_cred.rev_reg_id.as_ref().unwrap().0;
-        let (rev_status_list, update_timestamp) = get_rev_reg_status_list_as_of_timestamp(
-            &self.signer,
-            rev_reg_id,
-            requested_nrp_timestamp,
-        )
-        .await;
+        let (rev_status_list, update_timestamp) = self
+            .registry
+            .get_rev_reg_status_list_as_of_timestamp(rev_reg_id, requested_nrp_timestamp)
+            .await;
 
         let rev_reg_idx = holder_cred.signature.extract_index().unwrap();
         let rev_state = create_or_update_revocation_state(
@@ -207,7 +210,7 @@ const TAILS_DIR: &str = "tails";
 
 #[allow(unused)]
 pub struct Issuer {
-    signer: EtherSigner,
+    registry: AnoncredsEthRegistry,
     schema_resource_id: DIDResourceId,
     cred_def_resource_id: DIDResourceId,
     rev_reg_def_resource_id: DIDResourceId,
@@ -234,9 +237,11 @@ pub enum CredRevocationUpdateType {
 }
 
 impl Issuer {
-    pub async fn bootstrap(signer: EtherSigner) -> Self {
+    pub async fn bootstrap(signer: Arc<EtherSigner>) -> Self {
         let signer_address = signer.address();
         let issuer_id = address_as_did(&signer_address);
+
+        let registry = AnoncredsEthRegistry::new(signer);
 
         let attr_names: &[&str] = &["name", "age"];
 
@@ -252,7 +257,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting schema...");
-        let schema_resource_id = submit_json_resource(&signer, &schema, "schema").await;
+        let schema_resource_id = registry.submit_json_resource(&schema, "schema").await;
         let schema_id = schema_resource_id.to_id();
 
         let cred_def_tag = "MyCredDef";
@@ -270,7 +275,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting cred def...");
-        let cred_def_resource_id = submit_json_resource(&signer, &cred_def, "cred_def").await;
+        let cred_def_resource_id = registry.submit_json_resource(&cred_def, "cred_def").await;
 
         let rev_reg_def_tag = "MyRevRegDef";
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
@@ -289,8 +294,9 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting rev reg def...");
-        let rev_reg_def_resource_id =
-            submit_json_resource(&signer, &rev_reg_def, "rev_reg_def").await;
+        let rev_reg_def_resource_id = registry
+            .submit_json_resource(&rev_reg_def, "rev_reg_def")
+            .await;
 
         println!("Issuer: creating rev list...");
         let rev_list = anoncreds::issuer::create_revocation_status_list(
@@ -302,9 +308,9 @@ impl Issuer {
         )
         .unwrap();
         println!("Issuer: submitting rev list initial entry...");
-        let ledger_timestamp =
-            submit_rev_reg_status_update(&signer, &rev_reg_def_resource_id.to_id(), &rev_list)
-                .await;
+        let ledger_timestamp = registry
+            .submit_rev_reg_status_update(&rev_reg_def_resource_id.to_id(), &rev_list)
+            .await;
         println!("Issuer: submitted rev list initial entry at ledger time: {ledger_timestamp:?}");
         let rev_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
             ledger_timestamp,
@@ -322,7 +328,7 @@ impl Issuer {
         );
 
         Self {
-            signer,
+            registry,
             schema_resource_id,
             cred_def_resource_id,
             rev_reg_def_resource_id,
@@ -405,12 +411,10 @@ impl Issuer {
         )
         .unwrap();
 
-        let ledger_timestamp = submit_rev_reg_status_update(
-            &self.signer,
-            &self.rev_reg_def_resource_id.to_id(),
-            &new_list,
-        )
-        .await;
+        let ledger_timestamp = self
+            .registry
+            .submit_rev_reg_status_update(&self.rev_reg_def_resource_id.to_id(), &new_list)
+            .await;
 
         println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
 
@@ -419,7 +423,7 @@ impl Issuer {
 }
 
 pub struct Verifier {
-    signer: EtherSigner,
+    registry: AnoncredsEthRegistry,
     protocol_data: VerifierProtocolFlowData,
 }
 
@@ -429,9 +433,11 @@ pub struct VerifierProtocolFlowData {
 }
 
 impl Verifier {
-    pub fn bootstrap(signer: EtherSigner) -> Self {
+    pub fn bootstrap(signer: ArcEtherSigner) -> Self {
+        let registry = AnoncredsEthRegistry::new(signer);
+
         Verifier {
-            signer,
+            registry,
             protocol_data: Default::default(),
         }
     }
@@ -439,13 +445,13 @@ impl Verifier {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        get_json_resource(&self.signer, schema_id).await
+        self.registry.get_json_resource(schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        get_json_resource(&self.signer, cred_def_id).await
+        self.registry.get_json_resource(cred_def_id).await
     }
 
     pub fn request_presentation(&mut self, from_cred_def: &str) -> PresentationRequest {
@@ -546,15 +552,16 @@ impl Verifier {
         cred_defs.insert(&cred_def_id, &cred_def_for_cred);
 
         // construct rev info
-        let rev_status_list =
-            get_rev_reg_status_list_as_of_timestamp(&self.signer, &rev_reg_id, presented_timestamp)
-                .await
-                .0;
+        let rev_status_list = self
+            .registry
+            .get_rev_reg_status_list_as_of_timestamp(&rev_reg_id, presented_timestamp)
+            .await
+            .0;
         let mut rev_reg_defs: HashMap<
             &RevocationRegistryDefinitionId,
             &RevocationRegistryDefinition,
         > = HashMap::new();
-        let rev_reg_def_for_cred = get_json_resource(&self.signer, &rev_reg_id).await;
+        let rev_reg_def_for_cred = self.registry.get_json_resource(&rev_reg_id).await;
         // re-typing from RevocationRegistryId to RevocationRegistryDefinitionId?! seems to be the same thing?
         let rev_reg_def_id = rev_reg_id.try_into().unwrap();
         rev_reg_defs.insert(&rev_reg_def_id, &rev_reg_def_for_cred);
