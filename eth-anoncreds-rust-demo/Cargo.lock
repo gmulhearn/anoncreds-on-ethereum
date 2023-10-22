@@ -763,6 +763,7 @@ name = "eth-anoncreds-rust-demo"
 version = "0.1.0"
 dependencies = [
  "anoncreds",
+ "bitvec",
  "dotenv",
  "ethers",
  "serde",

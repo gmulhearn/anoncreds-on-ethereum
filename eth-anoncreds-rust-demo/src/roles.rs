@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use anoncreds::{
     data_types::{
         cred_def::{CredentialDefinition, CredentialDefinitionId},
+        rev_reg::RevocationRegistryId,
         rev_reg_def::RevocationRegistryDefinitionId,
         schema::{Schema, SchemaId},
     },
@@ -26,6 +27,11 @@ use crate::{
     utils::get_epoch_secs,
     EtherSigner,
 };
+
+/// ID/index of the issued credential in the revocation status list
+/// NOTE: there are issues with having this index at `0`, so starting
+/// the index at 1 instead
+const CRED_REV_ID: u32 = 1;
 
 pub struct Holder {
     signer: EtherSigner,
@@ -68,7 +74,7 @@ impl Holder {
         let fetched_cred_def = self.fetch_cred_def(&cred_offer.cred_def_id.0).await;
 
         let (cred_request, cred_request_metadata) = anoncreds::prover::create_credential_request(
-            Some(&uuid::Uuid::new_v4().to_string()),
+            Some("entropy"),
             None,
             &fetched_cred_def,
             &self.link_secret,
@@ -84,13 +90,15 @@ impl Holder {
 
     pub async fn store_credential(&mut self, mut credential: Credential) {
         let fetched_cred_def = self.fetch_cred_def(&credential.cred_def_id.0).await;
+        let fetched_rev_reg_def: RevocationRegistryDefinition =
+            get_json_resource(&self.signer, &credential.rev_reg_id.as_ref().unwrap().0).await;
 
         anoncreds::prover::process_credential(
             &mut credential,
             self.protocol_data.request_metadata.as_ref().unwrap(),
             &self.link_secret,
             &fetched_cred_def,
-            None,
+            Some(&fetched_rev_reg_def),
         )
         .unwrap();
 
@@ -355,12 +363,14 @@ impl Issuer {
             &self.protocol_data.cred_offer.as_ref().unwrap(),
             cred_request,
             credential_values.into(),
-            Some(self.rev_reg_def_resource_id.to_id().try_into().unwrap()),
+            Some(RevocationRegistryId::new_unchecked(
+                self.rev_reg_def_resource_id.to_id(),
+            )),
             Some(&self.rev_list),
             Some(CredentialRevocationConfig {
                 reg_def: &self.rev_reg_def,
                 reg_def_private: &self.rev_reg_def_private,
-                registry_idx: 0,
+                registry_idx: CRED_REV_ID,
                 tails_reader: tr,
             }),
         )
@@ -370,7 +380,7 @@ impl Issuer {
     pub async fn revoke_credential(&mut self) {
         // NOTE - these lists seem to be the delta (i.e. changes to be made) rather than complete list
         let mut revoked: BTreeSet<u32> = BTreeSet::new();
-        revoked.insert(0);
+        revoked.insert(CRED_REV_ID);
 
         let new_list = anoncreds::issuer::update_revocation_status_list(
             None,

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anoncreds::data_types::rev_status_list::serde_revocation_list;
+use bitvec::{prelude::Lsb0, vec::BitVec};
 use ethers::contract::EthLogDecode;
 use ethers::{
     abi::RawLog,
@@ -162,8 +163,6 @@ pub async fn submit_rev_reg_status_update(
         })
         .unwrap();
 
-    dbg!(&rev_reg_update_event);
-
     let ledger_recorded_timestamp = rev_reg_update_event.timestamp.as_u64();
 
     ledger_recorded_timestamp
@@ -207,13 +206,16 @@ pub async fn get_rev_reg_status_list_as_of_timestamp(
         .await
         .unwrap();
 
-    let rev_list = serde_json::from_str(&entry.revocation_list).unwrap();
+    let mut rev_list: BitVec = serde_json::from_str(&entry.revocation_list).unwrap();
+    let mut recapacitied_rev_list = BitVec::<usize, Lsb0>::with_capacity(64);
+    recapacitied_rev_list.append(&mut rev_list);
+
     let current_accumulator = serde_json::from_value(json!(&entry.current_accumulator)).unwrap();
 
     let rev_list = anoncreds::types::RevocationStatusList::new(
         Some(rev_reg_id),
         rev_reg_resource_id.author_did().try_into().unwrap(),
-        rev_list,
+        recapacitied_rev_list,
         Some(current_accumulator),
         Some(timestamp_of_entry),
     )
