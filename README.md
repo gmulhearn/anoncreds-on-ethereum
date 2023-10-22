@@ -81,6 +81,9 @@ This optimisation is especially neccessary, as fetching the full list of `Revoca
 
 An example of how this approach is used can be seen [here](./eth-anoncreds-rust-demo/src/anoncreds_eth_registry.rs#L219).
 
+#### Disclaimer
+_The 'optimisation' approach taken by this demo is far from perfect. It is just a slight optimisation done to draw attention to the idea that revocation status lists need optimisation considerations, particularly for `timestamp` lookups._
+
 # Demo
 The demo within the Rust crate walks thru the following:
 * Creating anoncred artifacts (schema, cred def, revocation registry def) and writing them to the registry
