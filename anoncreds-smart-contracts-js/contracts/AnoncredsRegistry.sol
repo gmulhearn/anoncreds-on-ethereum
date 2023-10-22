@@ -7,8 +7,8 @@ pragma solidity ^0.8.9;
 /// mechanisms for efficient lookups of revocation status lists by [timestamp].
 contract AnoncredsRegistry {
 
-    /// storage of string blobs, which are immutable once uploaded, and identified by it's ID + Author
-    mapping(address => mapping(string => string)) immutableResourceByIdByAuthorAddress;
+    /// storage of string blobs, which are immutable once uploaded, and identified by its path + Author
+    mapping(address => mapping(string => string)) immutableResourceByPathByAuthorAddress;
 
     /// where revStatusUpdateTimestamps[i] == the timestamp of revStatusLists[i] below
     /// note that by issuer (address =>) is only needed for security purposes.
@@ -25,31 +25,31 @@ contract AnoncredsRegistry {
         string currentAccumulator;
     }
 
-    event NewResource(address issuer, string id);
+    event NewResource(address issuer, string path);
     event NewRevRegStatusUpdate(string rev_reg_id, uint index_in_status_list, uint32 timestamp);
 
     constructor() {
     }
 
-    function does_immutable_resource_exist(address author, string memory id) private view returns (bool) {
-        string memory resource = immutableResourceByIdByAuthorAddress[author][id];
+    function does_immutable_resource_exist(address author, string memory path) private view returns (bool) {
+        string memory resource = immutableResourceByPathByAuthorAddress[author][path];
         return bytes(resource).length != 0;
     }
 
     /// Store [content] as an immutable resource in this registry. Where [content] is uniquely identified
-    /// by the [id] and the author (i.e. address that executed the transaction).
-    /// Note that since this is immutable data, repeated [id]s can only be used once per given author.
-    function create_immutable_resource(string memory id, string memory content) public {
+    /// by the [path] and the author (i.e. address that executed the transaction).
+    /// Note that since this is immutable data, repeated [path]s can only be used once per given author.
+    function create_immutable_resource(string memory path, string memory content) public {
         address author = msg.sender;
 
-        require(!does_immutable_resource_exist(author, id), "Resource already created with this ID and author");
-        immutableResourceByIdByAuthorAddress[author][id] = content;
-        emit NewResource(author, id);
+        require(!does_immutable_resource_exist(author, path), "Resource already created with this Path and author");
+        immutableResourceByPathByAuthorAddress[author][path] = content;
+        emit NewResource(author, path);
     }
 
-    /// Get the [content] of an immutable resource in this registry, identifier by it's [id] and [author].
-    function get_immutable_resource(address author, string memory id) public view returns (string memory) {
-        return immutableResourceByIdByAuthorAddress[author][id];
+    /// Get the [content] of an immutable resource in this registry, identified by it's [path] and [author].
+    function get_immutable_resource(address author, string memory path) public view returns (string memory) {
+        return immutableResourceByPathByAuthorAddress[author][path];
     }
 
     /// Stores a new [status_list] within the list of status lists stored for the given [rev_reg_id] (and [issuer]).

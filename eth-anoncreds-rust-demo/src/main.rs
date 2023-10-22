@@ -2,40 +2,14 @@ pub mod anoncreds_eth_registry;
 pub mod roles;
 pub mod utils;
 
-use std::{env, sync::Arc, time::Duration};
-
-use anoncreds_eth_registry::{EtherSigner, REGISTRY_RPC};
-use dotenv::dotenv;
-use ethers::{
-    prelude::SignerMiddleware,
-    providers::{Http, Provider},
-    signers::{coins_bip39::English, MnemonicBuilder, Signer},
-};
+use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::{
+    anoncreds_eth_registry::get_default_ethers_client,
     roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
     utils::get_epoch_secs,
 };
-
-pub type ArcEtherSigner = Arc<EtherSigner>;
-
-fn get_ethers_client() -> Arc<EtherSigner> {
-    dotenv().ok();
-
-    let seed = env::var("MNEMONIC").unwrap();
-
-    let wallet = MnemonicBuilder::<English>::default()
-        .phrase(&*seed)
-        .build()
-        .unwrap()
-        .with_chain_id(31337 as u64);
-
-    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
-    let x = Arc::new(SignerMiddleware::new(provider, wallet));
-
-    x
-}
 
 #[tokio::main]
 async fn main() {
@@ -44,7 +18,7 @@ async fn main() {
 
 async fn full_demo() {
     // ------ SETUP CLIENTS ------
-    let signer = get_ethers_client();
+    let signer = get_default_ethers_client();
 
     println!("Holder: setting up...");
     let mut holder = Holder::bootstrap(signer.clone()).await;
@@ -53,11 +27,14 @@ async fn full_demo() {
     println!("Verifier: setting up...");
     let mut verifier = Verifier::bootstrap(signer.clone());
 
+    // issue the cred to the holder
     issuance_demo(&mut holder, &mut issuer).await;
 
+    // present without a NRP
     let mut prover = holder;
     assert!(presentation_demo(&mut prover, &mut verifier).await);
 
+    // present with a NRP
     let first_epoch = get_epoch_secs();
     assert!(presentation_demo_with_nrp(&mut prover, &mut verifier, first_epoch).await);
 
@@ -85,6 +62,7 @@ async fn full_demo() {
     assert!(presentation_demo_with_nrp(&mut prover, &mut verifier, third_epoch).await);
 }
 
+/// Run thru a single credential issuance flow. Issuing a revocable credential.
 async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
     println!("\n########## ISSUANCE ###########\n");
     println!("Issuer: creating credential offer...");
@@ -106,6 +84,7 @@ async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
     println!("\n########## END OF ISSUANCE ###########\n");
 }
 
+/// Run thru a single proof presentation, with a cred_def restriction.
 async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) -> bool {
     println!("\n########## PRESENTATION ###########\n");
 
@@ -125,6 +104,8 @@ async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) -> bool
     valid
 }
 
+/// Run thru a single proof presentation, with a cred_def restriction, and request a NRP
+/// with an interval of `non_revoked_as_of`.
 async fn presentation_demo_with_nrp(
     prover: &mut Holder,
     verifier: &mut Verifier,

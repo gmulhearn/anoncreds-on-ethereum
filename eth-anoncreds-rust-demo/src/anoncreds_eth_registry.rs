@@ -1,8 +1,12 @@
+use std::env;
 use std::sync::Arc;
 
 use anoncreds::data_types::rev_status_list::serde_revocation_list;
 use bitvec::{prelude::Lsb0, vec::BitVec};
+use dotenv::dotenv;
 use ethers::contract::EthLogDecode;
+use ethers::signers::coins_bip39::English;
+use ethers::signers::{MnemonicBuilder, Signer};
 use ethers::types::Address;
 use ethers::{
     abi::RawLog,
@@ -26,6 +30,23 @@ pub const REGISTRY_WETH_ADDRESS: &str = "0x5FbDB2315678afecb367f032d93F642f64180
 
 pub type EtherSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
+pub fn get_default_ethers_client() -> Arc<EtherSigner> {
+    dotenv().ok();
+
+    let seed = env::var("MNEMONIC").unwrap();
+
+    let wallet = MnemonicBuilder::<English>::default()
+        .phrase(&*seed)
+        .build()
+        .unwrap()
+        .with_chain_id(31337 as u64);
+
+    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
+    let x = Arc::new(SignerMiddleware::new(provider, wallet));
+
+    x
+}
+
 // Hacked up DID method for ethereum addresses (probably not 100% valid)
 pub fn address_as_did(address: &H160) -> String {
     // note that debug fmt of address is the '0x..' hex encoding.
@@ -33,6 +54,7 @@ pub fn address_as_did(address: &H160) -> String {
     format!("did:based:{address:?}")
 }
 
+/// Represents an identifier for an immutable resource stored in the registry.
 #[derive(Debug)]
 pub struct DIDResourceId {
     pub author_pub_key: H160,
@@ -67,6 +89,8 @@ impl DIDResourceId {
     }
 }
 
+/// A structure containing read and write operations for interacting
+/// with the anoncreds ethereum registry.
 pub struct AnoncredsEthRegistry {
     contract: AnoncredsRegistry<EtherSigner>,
 }
@@ -79,6 +103,13 @@ impl AnoncredsEthRegistry {
         AnoncredsEthRegistry { contract }
     }
 
+    /// Push any JSON serializable [resource] to the registry as an immutable resource.
+    ///
+    /// The immutable resource is published using the signer author held by this
+    /// [AnoncredsEthRegistry] instance. The resource is given a random ID, under the
+    /// provided [parent_path].
+    ///
+    /// Returns the resource identifier for the pushed resource.
     pub async fn submit_json_resource<S>(&self, resource: &S, parent_path: &str) -> DIDResourceId
     where
         S: Serialize,
@@ -101,6 +132,8 @@ impl AnoncredsEthRegistry {
         }
     }
 
+    /// Find an immutable resource within the registry, as identified by [resource_id],
+    /// then JSON deserialize the resource contents into type [D].
     pub async fn get_json_resource<D>(&self, resource_id: &str) -> D
     where
         D: DeserializeOwned,
@@ -120,12 +153,16 @@ impl AnoncredsEthRegistry {
         serde_json::from_str(&resource_json).unwrap()
     }
 
+    /// Publish a new revocation status list for the revocation registry
+    /// identifier by [rev_reg_id] to the registry.
+    ///
     /// Returns the real timestamp recorded on the ledger
     pub async fn submit_rev_reg_status_update(
         &self,
         rev_reg_id: &str,
         revocation_status_list: &anoncreds::types::RevocationStatusList,
     ) -> u64 {
+        // dismantle the inner parts that we want to upload to the registry
         let revocation_status_list_json: Value =
             serde_json::to_value(revocation_status_list).unwrap();
         let current_accumulator = revocation_status_list_json
@@ -153,6 +190,9 @@ impl AnoncredsEthRegistry {
             .unwrap()
             .unwrap();
 
+        // extract the emitted [AnoncredsRegistryEvents::NewRevRegStatusUpdateFilter] event
+        // from the transaction's receipt. This event importantly contains the ledger
+        // timestamp that will be used for that revocation status list entry.
         let mut eth_events = tx
             .logs
             .into_iter()
@@ -170,6 +210,12 @@ impl AnoncredsEthRegistry {
         ledger_recorded_timestamp
     }
 
+    /// For the given [rev_reg_id], find the revocation status list entry that is
+    /// closest to the given [timestamp], but no later.
+    ///
+    /// Returns the closest revocation status list, and the timestamp of that revocation
+    /// status list entry. (The timestamp is also within the status list object, but is
+    /// not accessible).
     pub async fn get_rev_reg_status_list_as_of_timestamp(
         &self,
         rev_reg_id: &str,
@@ -177,6 +223,7 @@ impl AnoncredsEthRegistry {
     ) -> (anoncreds::types::RevocationStatusList, u64) {
         let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
 
+        // get the timestamps for all revocation status list updates that have been made.
         let all_timestamps: Vec<u32> = self
             .contract
             .get_rev_reg_update_timestamps(
@@ -193,6 +240,10 @@ impl AnoncredsEthRegistry {
         }
 
         // TODO - here we might binary search rather than iter all
+        // Find the index of the timestamp that is closest to the provided [timestamp]:
+        // * scan the list until a timestamp is greater than the desired [timestamp],
+        //  then minus one from the index of that item.
+        // * OR, if no entries are greater than, just pick the last/latest entry.
         let index_of_entry = all_timestamps
             .iter()
             .position(|ts| ts > &timestamp)
@@ -200,6 +251,7 @@ impl AnoncredsEthRegistry {
             - 1;
         let timestamp_of_entry = all_timestamps[index_of_entry];
 
+        // get the revocation status list information of the determined index from the registry.
         let entry: anoncreds_registry::RevocationStatusList = self
             .contract
             .get_rev_reg_update_at_index(
@@ -211,6 +263,8 @@ impl AnoncredsEthRegistry {
             .await
             .unwrap();
 
+        // reconstruct the [anoncreds::types::RevocationStatusList] from the registry stored
+        // data.
         let mut rev_list: BitVec = serde_json::from_str(&entry.revocation_list).unwrap();
         let mut recapacitied_rev_list = BitVec::<usize, Lsb0>::with_capacity(64);
         recapacitied_rev_list.append(&mut rev_list);
@@ -226,6 +280,7 @@ impl AnoncredsEthRegistry {
             Some(timestamp_of_entry),
         )
         .unwrap();
+
         (rev_list, timestamp_of_entry)
     }
 }

@@ -22,9 +22,8 @@ use anoncreds::{
     },
 };
 
-use crate::{
-    anoncreds_eth_registry::{address_as_did, AnoncredsEthRegistry, DIDResourceId, EtherSigner},
-    ArcEtherSigner,
+use crate::anoncreds_eth_registry::{
+    address_as_did, AnoncredsEthRegistry, DIDResourceId, EtherSigner,
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -418,6 +417,11 @@ impl Issuer {
 
         println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
 
+        let new_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
+            ledger_timestamp,
+            &new_list,
+        );
+
         self.rev_list = new_list;
     }
 }
@@ -433,7 +437,7 @@ pub struct VerifierProtocolFlowData {
 }
 
 impl Verifier {
-    pub fn bootstrap(signer: ArcEtherSigner) -> Self {
+    pub fn bootstrap(signer: Arc<EtherSigner>) -> Self {
         let registry = AnoncredsEthRegistry::new(signer);
 
         Verifier {
