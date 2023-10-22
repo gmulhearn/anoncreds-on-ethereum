@@ -165,7 +165,7 @@ impl AnoncredsEthRegistry {
             })
             .unwrap();
 
-        let ledger_recorded_timestamp = rev_reg_update_event.timestamp.as_u64();
+        let ledger_recorded_timestamp = rev_reg_update_event.timestamp as u64;
 
         ledger_recorded_timestamp
     }
@@ -177,7 +177,7 @@ impl AnoncredsEthRegistry {
     ) -> (anoncreds::types::RevocationStatusList, u64) {
         let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
 
-        let all_timestamps: Vec<U256> = self
+        let all_timestamps: Vec<u32> = self
             .contract
             .get_rev_reg_update_timestamps(
                 rev_reg_resource_id.author_pub_key,
@@ -186,6 +186,7 @@ impl AnoncredsEthRegistry {
             .call()
             .await
             .unwrap();
+        let all_timestamps: Vec<u64> = all_timestamps.into_iter().map(u64::from).collect();
 
         if all_timestamps.is_empty() {
             panic!("No rev entries for rev reg: {rev_reg_id}")
@@ -194,10 +195,10 @@ impl AnoncredsEthRegistry {
         // TODO - here we might binary search rather than iter all
         let index_of_entry = all_timestamps
             .iter()
-            .position(|ts| ts > &U256::from(timestamp))
+            .position(|ts| ts > &timestamp)
             .unwrap_or(all_timestamps.len())
             - 1;
-        let timestamp_of_entry = all_timestamps[index_of_entry].as_u64();
+        let timestamp_of_entry = all_timestamps[index_of_entry];
 
         let entry: anoncreds_registry::RevocationStatusList = self
             .contract
