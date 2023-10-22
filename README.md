@@ -1,17 +1,17 @@
 # Anoncreds on Ethereum Proof of Concept
-Simple project demonstrating how a smart contract could be used as a VDR for anoncreds data (schemas and credential definitions).
+Simple project demonstrating how a smart contract could be used as a VDR for anoncreds data (schemas, credential definitions, revocation registry definitions and revocation status list entries).
 
-The `anoncreds-smart-contracts-js` directory contains a cookie cutter `hardhat` project for developing and deploying the `AnoncredsRegistry` smart contract. Refer to the hardhat generated README for usage of the hardhat project.
+The `anoncreds-smart-contracts-js` directory contains a cookie cutter `hardhat` project for developing and deploying the `AnoncredsRegistry` smart contract. Refer to the hardhat generated README for general usage of the hardhat project.
 
 Whilst the `eth-anoncreds-rust-demo` directory contains a rust demo binary, which uses `ethers` to connect with a `AnoncredsRegistry` smart contract instance and use it as a VDR in standard anoncreds issuer/holder & verifier/prover flows.
 
-# Overview
+# Implementation
 To accomplish VDR functionality for immutably storing anoncreds assets, the `AnoncredsRegistry` smart contract has two main features:
-* Storage and retrieval of arbitrary strings (resources), which are uniquely identified by a given ID and authenticated author
+* Storage and retrieval of arbitrary strings (resources), which are uniquely identified by a given `path` and authenticated `author`
 * Storage and (somewhat optimised) retrieval of [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) for revocation registries.
 
 ## Arbitrary String Resources
-Relatively simple in implementation, the smart contract stores data in the following map:
+Relatively simple in implementation, the smart contract stores resource data in the following map on the ledger:
 ```solidity
 mapping(address => mapping(string => string)) immutableResourceByPathByAuthorAddress;
 ```
@@ -38,7 +38,7 @@ The above example is an identifier being used to store an anoncreds schema as a 
 
 ## Revocation Status Lists
 ### Problem
-Anoncreds artifacts such as `Schemas`, `Cred Defs` and `Revocation Registry Defs` can be trivially stored as [DID Resource Identifiers](#did-resource-identifiers), however [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) are an artifact that need special handling for optimisation reasons. 
+Anoncreds artifacts such as `Schemas`, `Cred Defs` and `Revocation Registry Defs` can be trivially stored as resources found via [DID Resource Identifiers](#did-resource-identifiers), however [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) are an artifact that need special handling for indexing optimisation reasons. 
 
 This is particularly due to the nature of how these artifacts are fetched by anoncred agents. Schemas, Cred Defs and Rev Reg Defs are all typically fetched by agents via an already known ID (in our case we are using [DID Resource Identifiers](#did-resource-identifiers) as the IDs). These are known as they are passed around in data when engaging in protocols (issue-credential, present-proof).
 
@@ -46,8 +46,10 @@ However, revocation status list entries are typically retrieved in a more _dynam
 
 _*note: if there is no entry because this range, then the holder will use the closest entry made before the time `15`_.
 
+In general, we want to optimise the revocation status lists such that; given a revocation registry ID, the revocation status list entries within a particular timestamp range can be found as quickly as possible.
+
 ### Approach
-As such, we should try optimise these ledger look ups in our smart contract such that the consumer does not have to scan the entire list of revocation status list data every time. The half-optimised approach taken in this demo is as follows:
+As such, we should try optimise these ledger look ups in our smart contract such that the consumer does not have to scan the entire list of revocation status list data every time. The semi-optimised approach taken in this demo is as follows:
 
 The smart contract stores 2 maps of data on the ledger:
 ```rust
@@ -68,16 +70,16 @@ _*There is room for optimisation here, particularly serializing to string is sub
 The second map, `revStatusUpdateTimestampsByRevRegIdByIssuer`, acts as metadata for quicker lookups into the first map based on the desired timestamp. This map stores a list of epoch timestamp (`u32`) entries per revocation registry ID. The timestamp entries in these lists are 1-to-1 with the first map, i.e. index `[i]` in the timestamp list will have a value which is the timestamp associated with the index `[i]` entry in the `RevocationStatusList[]` list from the `revStatusListsByRevRegIdByIssuer` map.
 
 ```js
-let timestamp = revStatusUpdateTimestampsByRevRegIdByIssuer["issuer"]["revreg1"][i]
+let timestamp = revStatusUpdateTimestampsByRevRegIdByIssuer["issuer1"]["revreg1"][i]
 
-let statusList = revStatusListsByRevRegIdByIssuer["issuer"]["revreg1"][i]
+let statusList = revStatusListsByRevRegIdByIssuer["issuer1"]["revreg1"][i]
 
 // here, `timestamp` is the epoch timestamp for which the `statusList` entry was made on the ledger
 ```
 
 Given the relatively smaller size of lists within `revStatusUpdateTimestampsByRevRegIdByIssuer`, the idea is that consumers can retrieve the full list of timestamps for a given `rev_reg_id`, then they can locally scan thru that list of timestamps to find the `index` of a timestamp which is near a desired timestamp they had in mind (e.g. a non-revoked interval for a proof request). Then this `index` can be used to get the `RevocationStatusList` stored on the ledger at this `index` for the given `rev_reg_id`. 
 
-This optimisation is especially neccessary, as fetching the full list of `RevocationStatusList[]`s from the `revStatusListsByRevRegIdByIssuer` may be too large of a transaction for some ethereum ledgers/RPCs.
+This optimisation is especially neccessary, as fetching the full list of `RevocationStatusList[]`s from the `revStatusListsByRevRegIdByIssuer` may be too large of a transaction for some ethereum ledgers/RPCs to handle.
 
 An example of how this approach is used can be seen [here](./eth-anoncreds-rust-demo/src/anoncreds_eth_registry.rs#L219).
 
