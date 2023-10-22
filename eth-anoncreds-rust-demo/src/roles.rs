@@ -24,7 +24,6 @@ use crate::{
         address_as_did, get_json_resource, get_rev_reg_status_list_as_of_timestamp,
         submit_json_resource, submit_rev_reg_status_update, DIDResourceId,
     },
-    utils::get_epoch_secs,
     EtherSigner,
 };
 
@@ -228,6 +227,12 @@ pub struct IssuerProtocolFlowData {
     cred_offer: Option<CredentialOffer>,
 }
 
+#[derive(Debug)]
+pub enum CredRevocationUpdateType {
+    Revoke,
+    Issue,
+}
+
 impl Issuer {
     pub async fn bootstrap(signer: EtherSigner) -> Self {
         let signer_address = signer.address();
@@ -235,10 +240,10 @@ impl Issuer {
 
         let attr_names: &[&str] = &["name", "age"];
 
-        let schema_name = format!("MySchema-{}", uuid::Uuid::new_v4().to_string());
+        let schema_name = "MySchema";
         println!("Issuer: creating schema for schema name: {schema_name}...");
         let schema = anoncreds::issuer::create_schema(
-            &schema_name,
+            schema_name,
             "1.0",
             issuer_id.clone(),
             attr_names.into(),
@@ -250,14 +255,14 @@ impl Issuer {
         let schema_resource_id = submit_json_resource(&signer, &schema, "schema").await;
         let schema_id = schema_resource_id.to_id();
 
-        let cred_def_tag = format!("MyCredDef-{}", uuid::Uuid::new_v4().to_string());
+        let cred_def_tag = "MyCredDef";
         println!("Issuer: creating cred def for tag: {cred_def_tag}...");
         let (cred_def, cred_def_private, correctness_proof) =
             anoncreds::issuer::create_credential_definition(
                 schema_id.clone(),
                 &schema,
                 issuer_id.clone(),
-                &cred_def_tag,
+                cred_def_tag,
                 SignatureType::CL,
                 CredentialDefinitionConfig::new(true),
             )
@@ -267,7 +272,7 @@ impl Issuer {
         println!("Issuer: submitting cred def...");
         let cred_def_resource_id = submit_json_resource(&signer, &cred_def, "cred_def").await;
 
-        let rev_reg_def_tag = format!("MyRevRegDef-{}", uuid::Uuid::new_v4().to_string());
+        let rev_reg_def_tag = "MyRevRegDef";
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
 
         let mut tw = TailsFileWriter::new(Some(String::from(TAILS_DIR)));
@@ -275,7 +280,7 @@ impl Issuer {
             &cred_def,
             cred_def_resource_id.to_id(),
             issuer_id.clone(),
-            &rev_reg_def_tag,
+            rev_reg_def_tag,
             RegistryType::CL_ACCUM,
             10,
             &mut tw,
@@ -296,7 +301,7 @@ impl Issuer {
             true,
         )
         .unwrap();
-        println!("Issuer: submitting rev list initial entry: {rev_list:?}");
+        println!("Issuer: submitting rev list initial entry...");
         let ledger_timestamp =
             submit_rev_reg_status_update(&signer, &rev_reg_def_resource_id.to_id(), &rev_list)
                 .await;
@@ -377,26 +382,37 @@ impl Issuer {
         .unwrap()
     }
 
-    pub async fn revoke_credential(&mut self) {
+    pub async fn update_credential_revocation(&mut self, update_type: CredRevocationUpdateType) {
         // NOTE - these lists seem to be the delta (i.e. changes to be made) rather than complete list
-        let mut revoked: BTreeSet<u32> = BTreeSet::new();
-        revoked.insert(CRED_REV_ID);
+        let mut update_list: BTreeSet<u32> = BTreeSet::new();
+        update_list.insert(CRED_REV_ID);
+
+        // if requested update is to 'revoke', then set `revoked_updates` to Some, else `issued_updates`
+        // as Some.
+        let (issued_updates, revoked_updates) = match update_type {
+            CredRevocationUpdateType::Issue => (Some(update_list), None),
+            CredRevocationUpdateType::Revoke => (None, Some(update_list)),
+        };
+
+        println!("Issuer: submitting rev list update entry for update type: {update_type:?}");
 
         let new_list = anoncreds::issuer::update_revocation_status_list(
             None,
-            None,
-            Some(revoked),
+            issued_updates,
+            revoked_updates,
             &self.rev_reg_def,
             &self.rev_list,
         )
         .unwrap();
 
-        submit_rev_reg_status_update(
+        let ledger_timestamp = submit_rev_reg_status_update(
             &self.signer,
             &self.rev_reg_def_resource_id.to_id(),
             &new_list,
         )
         .await;
+
+        println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
 
         self.rev_list = new_list;
     }
@@ -455,10 +471,12 @@ impl Verifier {
         serde_json::from_value(proof_req_raw).unwrap()
     }
 
-    pub fn request_presentation_with_nrp(&mut self, from_cred_def: &str) -> PresentationRequest {
+    pub fn request_presentation_with_nrp(
+        &mut self,
+        from_cred_def: &str,
+        non_revoked_as_of: u64,
+    ) -> PresentationRequest {
         let nonce = anoncreds::verifier::generate_nonce().unwrap();
-
-        let current_epoch = get_epoch_secs();
 
         let proof_req_raw = serde_json::json!({
             "nonce": nonce,
@@ -473,7 +491,7 @@ impl Verifier {
                 },
             },
             "non_revoked": {
-                "to": current_epoch
+                "to": non_revoked_as_of
             }
         });
 

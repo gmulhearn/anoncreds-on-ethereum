@@ -14,6 +14,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::EtherSigner;
+
 // Include generated contract types from build script
 include!(concat!(env!("OUT_DIR"), "/anoncreds_registry_contract.rs"));
 

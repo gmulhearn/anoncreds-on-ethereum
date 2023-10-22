@@ -2,7 +2,7 @@ pub mod anoncreds_eth_registry;
 pub mod roles;
 pub mod utils;
 
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, time::Duration};
 
 use anoncreds_eth_registry::REGISTRY_RPC;
 use dotenv::dotenv;
@@ -11,8 +11,12 @@ use ethers::{
     providers::{Http, Provider},
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
+use tokio::time::sleep;
 
-use crate::roles::{Holder, Issuer, Verifier};
+use crate::{
+    roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
+    utils::get_epoch_secs,
+};
 
 pub type EtherSigner = Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>;
 
@@ -52,10 +56,33 @@ async fn full_demo() {
     issuance_demo(&mut holder, &mut issuer).await;
 
     let mut prover = holder;
-    presentation_demo_with_nrp(&mut prover, &mut verifier).await;
-    // presentation_demo(&mut prover, &mut verifier).await;
+    assert!(presentation_demo(&mut prover, &mut verifier).await);
 
-    // issuer.revoke_credential().await;
+    let first_epoch = get_epoch_secs();
+    assert!(presentation_demo_with_nrp(&mut prover, &mut verifier, first_epoch).await);
+
+    // revoke the holder's cred
+    issuer
+        .update_credential_revocation(CredRevocationUpdateType::Revoke)
+        .await;
+
+    sleep(Duration::from_secs(3)).await;
+
+    let second_epoch = get_epoch_secs();
+    // cannot present validly for newer interval
+    assert!(!presentation_demo_with_nrp(&mut prover, &mut verifier, second_epoch).await);
+    // can present validly for older interval still
+    assert!(presentation_demo_with_nrp(&mut prover, &mut verifier, first_epoch).await);
+
+    // unrevoke the holder's cred
+    issuer
+        .update_credential_revocation(CredRevocationUpdateType::Issue)
+        .await;
+
+    sleep(Duration::from_secs(3)).await;
+    let third_epoch = get_epoch_secs();
+    // can present validly for newer interval
+    assert!(presentation_demo_with_nrp(&mut prover, &mut verifier, third_epoch).await);
 }
 
 async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
@@ -79,7 +106,7 @@ async fn issuance_demo(holder: &mut Holder, issuer: &mut Issuer) {
     println!("\n########## END OF ISSUANCE ###########\n");
 }
 
-async fn _presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
+async fn presentation_demo(prover: &mut Holder, verifier: &mut Verifier) -> bool {
     println!("\n########## PRESENTATION ###########\n");
 
     println!("Verifier: Creating presentation request...");
@@ -94,14 +121,20 @@ async fn _presentation_demo(prover: &mut Holder, verifier: &mut Verifier) {
     println!("Verifier: verified presentation... Verified presentation: {valid}");
 
     println!("\n########## END OF PRESENTATION ###########\n");
+
+    valid
 }
 
-async fn presentation_demo_with_nrp(prover: &mut Holder, verifier: &mut Verifier) {
+async fn presentation_demo_with_nrp(
+    prover: &mut Holder,
+    verifier: &mut Verifier,
+    non_revoked_as_of: u64,
+) -> bool {
     println!("\n########## PRESENTATION ###########\n");
 
-    println!("Verifier: Creating presentation request...");
+    println!("Verifier: Creating NRP presentation request for interval '..{non_revoked_as_of}'");
     let from_cred_def = &prover.get_credential().cred_def_id.0;
-    let pres_req = verifier.request_presentation_with_nrp(from_cred_def);
+    let pres_req = verifier.request_presentation_with_nrp(from_cred_def, non_revoked_as_of);
 
     println!("Prover: creating presentation...");
     let presentation = prover.present_credential_with_nrp(&pres_req).await;
@@ -111,4 +144,6 @@ async fn presentation_demo_with_nrp(prover: &mut Holder, verifier: &mut Verifier
     println!("Verifier: verified presentation... Verified presentation: {valid}");
 
     println!("\n########## END OF PRESENTATION ###########\n");
+
+    valid
 }
