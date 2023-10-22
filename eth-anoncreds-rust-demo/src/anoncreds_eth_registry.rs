@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use anoncreds::data_types::rev_status_list::serde_revocation_list;
+use ethers::contract::EthLogDecode;
 use ethers::{
-    prelude::{abigen, k256::ecdsa::SigningKey, SignerMiddleware},
+    abi::RawLog,
+    prelude::{k256::ecdsa::SigningKey, SignerMiddleware},
     providers::{Http, Provider},
     signers::Wallet,
     types::{Address, H160, U256},
@@ -11,11 +13,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-// generate type-safe bindings to contract with ethers-rs
-abigen!(
-    AnoncredsRegistryContract,
-    "../anoncreds-smart-contracts-js/artifacts/contracts/AnoncredsRegistry.sol/AnoncredsRegistry.json"
-);
+// Include generated contract types from build script
+include!(concat!(env!("OUT_DIR"), "/anoncreds_registry_contract.rs"));
 
 // Ethereum RPC of the network to use (defaults to the hardhat local network)
 pub const REGISTRY_RPC: &str = "http://localhost:8545";
@@ -74,7 +73,8 @@ where
 {
     let resource_json = serde_json::to_string(resource).unwrap();
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
+
+    let contract = AnoncredsRegistry::new(address, Arc::clone(client));
 
     let resource_path = format!("{parent_path}/{}", Uuid::new_v4());
 
@@ -100,7 +100,7 @@ where
     D: DeserializeOwned,
 {
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
+    let contract = AnoncredsRegistry::new(address, Arc::clone(client));
 
     let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
 
@@ -116,13 +116,14 @@ where
     serde_json::from_str(&resource_json).unwrap()
 }
 
+/// Returns the real timestamp recorded on the ledger
 pub async fn submit_rev_reg_status_update(
     client: &Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
     rev_reg_id: &str,
     revocation_status_list: &anoncreds::types::RevocationStatusList,
-) {
+) -> u64 {
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
+    let contract = AnoncredsRegistry::new(address, Arc::clone(client));
 
     let revocation_status_list_json: Value = serde_json::to_value(revocation_status_list).unwrap();
     let current_accumulator = revocation_status_list_json
@@ -135,18 +136,37 @@ pub async fn submit_rev_reg_status_update(
     let bitvec = serde_revocation_list::deserialize(revocation_list_val).unwrap();
     let serialized_bitvec_revocation_list = serde_json::to_string(&bitvec).unwrap();
 
-    let status_list = anoncreds_registry_contract::RevocationStatusList {
+    let status_list = anoncreds_registry::RevocationStatusList {
         revocation_list: serialized_bitvec_revocation_list,
         current_accumulator,
     };
 
-    contract
+    let tx = contract
         .add_rev_reg_status_update(String::from(rev_reg_id), status_list)
         .send()
         .await
         .unwrap()
         .await
+        .unwrap()
         .unwrap();
+
+    let mut eth_events = tx
+        .logs
+        .into_iter()
+        .map(|log| AnoncredsRegistryEvents::decode_log(&RawLog::from(log)).unwrap());
+
+    let rev_reg_update_event = eth_events
+        .find_map(|log| match log {
+            AnoncredsRegistryEvents::NewRevRegStatusUpdateFilter(inner) => Some(inner),
+            _ => None,
+        })
+        .unwrap();
+
+    dbg!(&rev_reg_update_event);
+
+    let ledger_recorded_timestamp = rev_reg_update_event.timestamp.as_u64();
+
+    ledger_recorded_timestamp
 }
 
 pub async fn get_rev_reg_status_list_as_of_timestamp(
@@ -155,7 +175,7 @@ pub async fn get_rev_reg_status_list_as_of_timestamp(
     timestamp: u64,
 ) -> (anoncreds::types::RevocationStatusList, u64) {
     let address: Address = REGISTRY_WETH_ADDRESS.parse().unwrap();
-    let contract = AnoncredsRegistryContract::new(address, Arc::clone(client));
+    let contract = AnoncredsRegistry::new(address, Arc::clone(client));
 
     let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
 
@@ -177,7 +197,7 @@ pub async fn get_rev_reg_status_list_as_of_timestamp(
         - 1;
     let timestamp_of_entry = all_timestamps[index_of_entry].as_u64();
 
-    let entry: anoncreds_registry_contract::RevocationStatusList = contract
+    let entry: anoncreds_registry::RevocationStatusList = contract
         .get_rev_reg_update_at_index(
             rev_reg_resource_id.author_pub_key,
             String::from(rev_reg_id),

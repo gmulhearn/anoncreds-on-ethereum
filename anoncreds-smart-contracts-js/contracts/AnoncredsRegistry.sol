@@ -51,6 +51,11 @@ contract AnoncredsRegistry {
 
         revStatusUpdateTimestampsByRevRegIdByIssuer[issuer][rev_reg_id].push(timestamp);
         revStatusListsByRevRegIdByIssuer[issuer][rev_reg_id].push(status_list);
+
+        uint newListLength = revStatusListsByRevRegIdByIssuer[issuer][rev_reg_id].length;
+        uint indexOfNewEntry = newListLength - 1;
+
+        emit NewRevRegStatusUpdate(rev_reg_id, indexOfNewEntry, timestamp);
     }
 
     function get_rev_reg_update_timestamps(address issuer, string memory rev_reg_id) public view returns (uint[] memory) {

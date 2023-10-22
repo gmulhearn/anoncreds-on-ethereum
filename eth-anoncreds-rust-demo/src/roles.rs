@@ -166,6 +166,7 @@ impl Holder {
             requested_nrp_timestamp,
         )
         .await;
+
         let rev_reg_idx = holder_cred.signature.extract_index().unwrap();
         let rev_state = create_or_update_revocation_state(
             &rev_reg_def.value.tails_location,
@@ -262,7 +263,6 @@ impl Issuer {
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
 
         let mut tw = TailsFileWriter::new(Some(String::from(TAILS_DIR)));
-        dbg!(&tw);
         let (rev_reg_def, rev_reg_def_private) = anoncreds::issuer::create_revocation_registry_def(
             &cred_def,
             cred_def_resource_id.to_id(),
@@ -288,9 +288,15 @@ impl Issuer {
             true,
         )
         .unwrap();
-
         println!("Issuer: submitting rev list initial entry: {rev_list:?}");
-        submit_rev_reg_status_update(&signer, &rev_reg_def_resource_id.to_id(), &rev_list).await;
+        let ledger_timestamp =
+            submit_rev_reg_status_update(&signer, &rev_reg_def_resource_id.to_id(), &rev_list)
+                .await;
+        println!("Issuer: submitted rev list initial entry at ledger time: {ledger_timestamp:?}");
+        let rev_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
+            ledger_timestamp,
+            &rev_list,
+        );
 
         let schema_id = schema_resource_id.to_id();
         let cred_def_id = cred_def_resource_id.to_id();
