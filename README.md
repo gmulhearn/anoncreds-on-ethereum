@@ -63,21 +63,21 @@ struct RevocationStatusList {
     string currentAccumulator;
 }
 
-mapping(address => mapping(string => RevocationStatusList[])) revStatusListsByRevRegIdByIssuer;
+mapping(address => mapping(string => RevocationStatusList[])) revStatusListsByRevRegIdByDidIdentity;
 
 mapping(address => mapping(string => uint32[])) revStatusUpdateTimestampsByRevRegIdByDidIdentity;
 ```
 
-The first map, `revStatusListsByRevRegIdByDidIdentity`, stores the actual `RevocationStatusList` entries uniquely against the ID of the revocation registry AND the authenticated issuer. The list of `RevocationStatusList`s per revocation registry ID is ordered in chronological order. `RevocationStatusList` items are relatively large due to the data it holds*.
+The first map, `revStatusListsByRevRegIdByDidIdentity`, stores the actual `RevocationStatusList` entries uniquely against the ID of the revocation registry AND the authenticated DID identity. The list of `RevocationStatusList`s per revocation registry ID is ordered in chronological order. `RevocationStatusList` items are relatively large due to the data it holds*.
 
 _*There is room for optimisation here, particularly serializing to string is sub-optimal for the data it stores._
 
 The second map, `revStatusUpdateTimestampsByRevRegIdByDidIdentity`, acts as metadata for quicker lookups into the first map based on the desired timestamp. This map stores a list of epoch timestamp (`u32`) entries per revocation registry ID. The timestamp entries in these lists are 1-to-1 with the first map, i.e. index `[i]` in the timestamp list will have a value which is the timestamp associated with the index `[i]` entry in the `RevocationStatusList[]` list from the `revStatusListsByRevRegIdByDidIdentity` map.
 
 ```js
-let timestamp = revStatusUpdateTimestampsByRevRegIdByIssuer["0xABC"]["revreg1"][i]
+let timestamp = revStatusUpdateTimestampsByRevRegIdByDidIdentity["0xABC"]["revreg1"][i]
 
-let statusList = revStatusListsByRevRegIdByIssuer["0xABC"]["revreg1"][i]
+let statusList = revStatusListsByRevRegIdByDidIdentity["0xABC"]["revreg1"][i]
 
 // here, `timestamp` is the epoch timestamp for which the `statusList` entry was made on the ledger
 ```
