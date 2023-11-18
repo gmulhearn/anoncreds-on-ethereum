@@ -123,9 +123,10 @@ impl AnoncredsEthRegistry {
 
     /// Push any JSON serializable [resource] to the registry as an immutable resource.
     ///
-    /// The immutable resource is published using the signer author held by this
-    /// [AnoncredsEthRegistry] instance. The resource is given a random ID, under the
-    /// provided [parent_path].
+    /// The immutable resource is published using the signer passed in. For this transaction
+    /// to succeed, the signer should be the controller of the given `did`.
+    /// 
+    /// The resource is given a random ID, under the provided [parent_path].
     ///
     /// Returns the resource identifier for the pushed resource.
     pub async fn submit_json_resource<S>(

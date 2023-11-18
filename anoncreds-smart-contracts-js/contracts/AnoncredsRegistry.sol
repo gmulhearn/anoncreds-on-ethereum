@@ -41,8 +41,8 @@ contract AnoncredsRegistry {
         didRegistry = EthereumDIDRegistry(didRegistryAddress);
     }
 
-    function doesImmutableResourceExist(address author, string memory path) private view returns (bool) {
-        string memory resource = immutableResourceByPathByDidIdentity[author][path];
+    function doesImmutableResourceExist(address didIdentity, string memory path) private view returns (bool) {
+        string memory resource = immutableResourceByPathByDidIdentity[didIdentity][path];
         return bytes(resource).length != 0;
     }
 
