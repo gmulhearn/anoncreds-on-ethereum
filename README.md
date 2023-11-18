@@ -1,14 +1,19 @@
 # Anoncreds on Ethereum Proof of Concept
 Simple project demonstrating how a smart contract could be used as a VDR for anoncreds data (schemas, credential definitions, revocation registry definitions and revocation status list entries).
 
-The `anoncreds-smart-contracts-js` directory contains a cookie cutter `hardhat` project for developing and deploying the `AnoncredsRegistry` smart contract. Refer to the hardhat generated README for general usage of the hardhat project.
+The `anoncreds-smart-contracts-js` directory contains a cookie cutter `hardhat` project for developing and deploying the `AnoncredsRegistry` & [EthereumDIDRegistry](https://github.com/uport-project/ethr-did-registry/blob/master/contracts/EthereumDIDRegistry.sol) smart contracts. Refer to the hardhat generated README for general usage of the hardhat project.
 
-Whilst the `eth-anoncreds-rust-demo` directory contains a rust demo binary, which uses `ethers` to connect with a `AnoncredsRegistry` smart contract instance and use it as a VDR in standard anoncreds issuer/holder & verifier/prover flows.
+Whilst the `eth-anoncreds-rust-demo` directory contains a rust demo binary, which uses `ethers` to connect with the `AnoncredsRegistry` & `EthereumDIDRegistry` smart contract instances and use it as a VDR in standard anoncreds issuer/holder & verifier/prover flows.
 
 # Implementation
 To accomplish VDR functionality for immutably storing anoncreds assets, the `AnoncredsRegistry` smart contract has two main features:
-* Storage and retrieval of arbitrary strings (resources), which are uniquely identified by a given `path` and authenticated `identity` (Identity of the did:ethr DID. [See did:ethr spec](https://github.com/decentralized-identity/ethr-did-resolver/blob/master/doc/did-method-spec.md#relationship-to-erc1056))
+* Storage and retrieval of arbitrary strings (resources), which are uniquely identified by a given `path` and authenticated `didIdentity` (Identity of the did:ethr DID. [See did:ethr spec](https://github.com/decentralized-identity/ethr-did-resolver/blob/master/doc/did-method-spec.md#relationship-to-erc1056))
 * Storage and (somewhat optimised) retrieval of [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) for revocation registries.
+
+## did:ethr Controller Authentication
+Both types of resources mentioned above are stored against the identity address of a `did:ethr`. The write operations within `AnoncredsRegistry` require that the message signer (ethereum transaction signer) is coming from the _DID controller_ of the `did:ethr` for which the resource is being written for.
+
+This is done by having `AnoncredsRegistry` look up the controller/owner of the did:ethr identity within the `EthereumDIDRegistry` via the contract's `identityOwner` method. For convenience, a smart contract modifier `onlyDidIdentityOwner` has been created to easily check this authentication.
 
 ## Arbitrary String Resources
 Relatively simple in implementation, the smart contract stores resource data in the following map on the ledger:
