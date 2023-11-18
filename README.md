@@ -82,9 +82,9 @@ let statusList = revStatusListsByRevRegIdByDidIdentity["0xABC"]["revreg1"][i]
 // here, `timestamp` is the epoch timestamp for which the `statusList` entry was made on the ledger
 ```
 
-Given the relatively smaller size of lists within `revStatusUpdateTimestampsByRevRegIdBy0xABC`, the idea is that consumers can retrieve the full list of timestamps for a given `revocationRegistryId`, then they can locally scan thru that list of timestamps to find the `index` of a timestamp which is near a desired timestamp they had in mind (e.g. a non-revoked interval for a proof request). Then this `index` can be used to get the `RevocationStatusList` stored on the ledger at this `index` for the given `revocationRegistryId`. 
+Given the relatively smaller size of lists within `revStatusUpdateTimestampsByRevRegIdByDidIdentity`, the idea is that consumers can retrieve the full list of timestamps for a given `revocationRegistryId`, then they can locally scan thru that list of timestamps to find the `index` of a timestamp which is near a desired timestamp they had in mind (e.g. a non-revoked interval for a proof request). Then this `index` can be used to get the `RevocationStatusList` stored on the ledger at this `index` for the given `revocationRegistryId`. 
 
-This optimisation is especially neccessary, as fetching the full list of `RevocationStatusList[]`s from the `revStatusListsByRevRegIdBy0xABC` may be too large of a transaction for some ethereum ledgers/RPCs to handle.
+This optimisation is especially neccessary, as fetching the full list of `RevocationStatusList[]`s from the `revStatusListsByRevRegIdByDidIdentity` may be too large of a transaction for some ethereum ledgers/RPCs to handle.
 
 An example of how this approach is used can be seen [here](./eth-anoncreds-rust-demo/src/anoncreds_eth_registry.rs#L219).
 

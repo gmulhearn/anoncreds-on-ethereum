@@ -20,7 +20,7 @@ contract AnoncredsRegistry {
 
     /// storage of revocation status lists, by the revocation registry ID, by the issuer.
     /// note that by issuer (address =>) is only needed for security purposes
-    mapping(address => mapping(string => RevocationStatusList[])) private revStatusListsByRevRegIdByDidRegistry;
+    mapping(address => mapping(string => RevocationStatusList[])) private revStatusListsByRevRegIdByDidIdentity;
     
     /// simplified revocation status list. Containing only the data we care about, 
     /// the rest can be constructed by the client with other metadata.
@@ -68,9 +68,9 @@ contract AnoncredsRegistry {
         uint32 timestamp = uint32(block.timestamp);
 
         revStatusUpdateTimestampsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].push(timestamp);
-        revStatusListsByRevRegIdByDidRegistry[didIdentity][revocationRegistryId].push(statusList);
+        revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].push(statusList);
 
-        uint newListLength = revStatusListsByRevRegIdByDidRegistry[didIdentity][revocationRegistryId].length;
+        uint newListLength = revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].length;
         uint indexOfNewEntry = newListLength - 1;
 
         emit NewRevRegStatusUpdate(revocationRegistryId, indexOfNewEntry, timestamp);
@@ -97,6 +97,6 @@ contract AnoncredsRegistry {
     ///
     /// consumers are intended to use [getRevocationRegistryUpdateTimestamps] to know exactly what [index] they are looking for.
     function getRevocationRegistryUpdateAtIndex(address didIdentity, string memory revocationRegistryId, uint index) public view returns (RevocationStatusList memory) {
-        return revStatusListsByRevRegIdByDidRegistry[didIdentity][revocationRegistryId][index];
+        return revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId][index];
     }
 }
