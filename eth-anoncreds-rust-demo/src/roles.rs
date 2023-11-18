@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap},
+    error::Error,
     sync::Arc,
 };
 
@@ -21,9 +22,11 @@ use anoncreds::{
         SignatureType,
     },
 };
+use serde::Serialize;
 
-use crate::anoncreds_eth_registry::{
-    address_as_did, AnoncredsEthRegistry, DIDResourceId, EtherSigner,
+use crate::{
+    anoncreds_eth_registry::{AnoncredsEthRegistry, DIDResourceId, EtherSigner},
+    eth_did_registry::DidEthRegistry,
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -45,9 +48,9 @@ pub struct HolderProtocolFlowData {
 }
 
 impl Holder {
-    pub async fn bootstrap(signer: Arc<EtherSigner>) -> Self {
+    pub async fn bootstrap() -> Self {
         let link_secret = anoncreds::prover::create_link_secret().unwrap();
-        let registry = AnoncredsEthRegistry::new(signer);
+        let registry = AnoncredsEthRegistry;
 
         Holder {
             registry,
@@ -207,9 +210,16 @@ impl Holder {
 
 const TAILS_DIR: &str = "tails";
 
-#[allow(unused)]
 pub struct Issuer {
-    registry: AnoncredsEthRegistry,
+    pub issuer_did: String,
+    pub signer: Arc<EtherSigner>,
+    anoncreds_registry: AnoncredsEthRegistry,
+    did_registry: DidEthRegistry,
+    demo_data: IssuerDemoData,
+}
+
+#[allow(unused)]
+struct IssuerDemoData {
     schema_resource_id: DIDResourceId,
     cred_def_resource_id: DIDResourceId,
     rev_reg_def_resource_id: DIDResourceId,
@@ -236,11 +246,8 @@ pub enum CredRevocationUpdateType {
 }
 
 impl Issuer {
-    pub async fn bootstrap(signer: Arc<EtherSigner>) -> Self {
-        let signer_address = signer.address();
-        let issuer_id = address_as_did(&signer_address);
-
-        let registry = AnoncredsEthRegistry::new(signer);
+    pub async fn bootstrap(issuer_did: String, signer: Arc<EtherSigner>) -> Self {
+        let anoncreds_registry = AnoncredsEthRegistry;
 
         let attr_names: &[&str] = &["name", "age"];
 
@@ -249,14 +256,17 @@ impl Issuer {
         let schema = anoncreds::issuer::create_schema(
             schema_name,
             "1.0",
-            issuer_id.clone(),
+            issuer_did.clone(),
             attr_names.into(),
         )
         .unwrap();
 
         // upload to ledger
         println!("Issuer: submitting schema...");
-        let schema_resource_id = registry.submit_json_resource(&schema, "schema").await;
+        let schema_resource_id = anoncreds_registry
+            .submit_json_resource(signer.clone(), &issuer_did, &schema, "schema")
+            .await
+            .unwrap();
         let schema_id = schema_resource_id.to_id();
 
         let cred_def_tag = "MyCredDef";
@@ -265,7 +275,7 @@ impl Issuer {
             anoncreds::issuer::create_credential_definition(
                 schema_id.clone(),
                 &schema,
-                issuer_id.clone(),
+                issuer_did.clone(),
                 cred_def_tag,
                 SignatureType::CL,
                 CredentialDefinitionConfig::new(true),
@@ -274,7 +284,10 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting cred def...");
-        let cred_def_resource_id = registry.submit_json_resource(&cred_def, "cred_def").await;
+        let cred_def_resource_id = anoncreds_registry
+            .submit_json_resource(signer.clone(), &issuer_did, &cred_def, "cred_def")
+            .await
+            .unwrap();
 
         let rev_reg_def_tag = "MyRevRegDef";
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
@@ -283,7 +296,7 @@ impl Issuer {
         let (rev_reg_def, rev_reg_def_private) = anoncreds::issuer::create_revocation_registry_def(
             &cred_def,
             cred_def_resource_id.to_id(),
-            issuer_id.clone(),
+            issuer_did.clone(),
             rev_reg_def_tag,
             RegistryType::CL_ACCUM,
             10,
@@ -293,22 +306,28 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting rev reg def...");
-        let rev_reg_def_resource_id = registry
-            .submit_json_resource(&rev_reg_def, "rev_reg_def")
-            .await;
+        let rev_reg_def_resource_id = anoncreds_registry
+            .submit_json_resource(signer.clone(), &issuer_did, &rev_reg_def, "rev_reg_def")
+            .await
+            .unwrap();
 
         println!("Issuer: creating rev list...");
         let rev_list = anoncreds::issuer::create_revocation_status_list(
             rev_reg_def_resource_id.to_id(),
             &rev_reg_def,
-            issuer_id,
+            issuer_did.clone(),
             None,
             true,
         )
         .unwrap();
         println!("Issuer: submitting rev list initial entry...");
-        let ledger_timestamp = registry
-            .submit_rev_reg_status_update(&rev_reg_def_resource_id.to_id(), &rev_list)
+        let ledger_timestamp = anoncreds_registry
+            .submit_rev_reg_status_update(
+                signer.clone(),
+                &issuer_did,
+                &rev_reg_def_resource_id.to_id(),
+                &rev_list,
+            )
             .await;
         println!("Issuer: submitted rev list initial entry at ledger time: {ledger_timestamp:?}");
         let rev_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
@@ -327,31 +346,56 @@ impl Issuer {
         );
 
         Self {
-            registry,
-            schema_resource_id,
-            cred_def_resource_id,
-            rev_reg_def_resource_id,
-            schema,
-            cred_def,
-            cred_def_private,
-            correctness_proof,
-            rev_reg_def,
-            rev_reg_def_private,
-            rev_list,
-            protocol_data: Default::default(),
+            anoncreds_registry,
+            did_registry: DidEthRegistry,
+            issuer_did,
+            signer,
+            demo_data: IssuerDemoData {
+                schema_resource_id,
+                cred_def_resource_id,
+                rev_reg_def_resource_id,
+                schema,
+                cred_def,
+                cred_def_private,
+                correctness_proof,
+                rev_reg_def,
+                rev_reg_def_private,
+                rev_list,
+                protocol_data: Default::default(),
+            },
         }
+    }
+
+    pub fn change_signer(&mut self, new_signer: Arc<EtherSigner>) {
+        self.signer = new_signer;
+    }
+
+    pub async fn rotate_did_controller(&self, new_controller: &Arc<EtherSigner>) {
+        let signer = self.signer.clone();
+
+        self.did_registry
+            .change_owner(signer, &self.issuer_did, new_controller.address())
+            .await;
+    }
+
+    pub async fn write_resource<T: Serialize>(&self, resource: &T) -> Result<(), Box<dyn Error>> {
+        let signer = self.signer.clone();
+        self.anoncreds_registry
+            .submit_json_resource(signer, &self.issuer_did, resource, "misc")
+            .await?;
+        Ok(())
     }
 
     pub fn create_offer(&mut self) -> CredentialOffer {
         let offer = anoncreds::issuer::create_credential_offer(
-            self.schema_resource_id.to_id(),
-            self.cred_def_resource_id.to_id(),
-            &self.correctness_proof,
+            self.demo_data.schema_resource_id.to_id(),
+            self.demo_data.cred_def_resource_id.to_id(),
+            &self.demo_data.correctness_proof,
         )
         .unwrap();
 
         let offer_clone = serde_json::from_str(&serde_json::to_string(&offer).unwrap()).unwrap();
-        self.protocol_data.cred_offer = Some(offer_clone);
+        self.demo_data.protocol_data.cred_offer = Some(offer_clone);
         offer
     }
 
@@ -365,21 +409,22 @@ impl Issuer {
         credential_values.add_raw("name", name).unwrap();
         credential_values.add_raw("age", age).unwrap();
 
-        let tr = TailsFileReader::new_tails_reader(&self.rev_reg_def.value.tails_location);
+        let tr =
+            TailsFileReader::new_tails_reader(&self.demo_data.rev_reg_def.value.tails_location);
 
         anoncreds::issuer::create_credential(
-            &self.cred_def,
-            &self.cred_def_private,
-            &self.protocol_data.cred_offer.as_ref().unwrap(),
+            &self.demo_data.cred_def,
+            &self.demo_data.cred_def_private,
+            &self.demo_data.protocol_data.cred_offer.as_ref().unwrap(),
             cred_request,
             credential_values.into(),
             Some(RevocationRegistryId::new_unchecked(
-                self.rev_reg_def_resource_id.to_id(),
+                self.demo_data.rev_reg_def_resource_id.to_id(),
             )),
-            Some(&self.rev_list),
+            Some(&self.demo_data.rev_list),
             Some(CredentialRevocationConfig {
-                reg_def: &self.rev_reg_def,
-                reg_def_private: &self.rev_reg_def_private,
+                reg_def: &self.demo_data.rev_reg_def,
+                reg_def_private: &self.demo_data.rev_reg_def_private,
                 registry_idx: CRED_REV_ID,
                 tails_reader: tr,
             }),
@@ -405,14 +450,19 @@ impl Issuer {
             None,
             issued_updates,
             revoked_updates,
-            &self.rev_reg_def,
-            &self.rev_list,
+            &self.demo_data.rev_reg_def,
+            &self.demo_data.rev_list,
         )
         .unwrap();
 
         let ledger_timestamp = self
-            .registry
-            .submit_rev_reg_status_update(&self.rev_reg_def_resource_id.to_id(), &new_list)
+            .anoncreds_registry
+            .submit_rev_reg_status_update(
+                self.signer.clone(),
+                &self.issuer_did,
+                &self.demo_data.rev_reg_def_resource_id.to_id(),
+                &new_list,
+            )
             .await;
 
         println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
@@ -422,7 +472,7 @@ impl Issuer {
             &new_list,
         );
 
-        self.rev_list = new_list;
+        self.demo_data.rev_list = new_list;
     }
 }
 
@@ -437,8 +487,8 @@ pub struct VerifierProtocolFlowData {
 }
 
 impl Verifier {
-    pub fn bootstrap(signer: Arc<EtherSigner>) -> Self {
-        let registry = AnoncredsEthRegistry::new(signer);
+    pub fn bootstrap() -> Self {
+        let registry = AnoncredsEthRegistry;
 
         Verifier {
             registry,
