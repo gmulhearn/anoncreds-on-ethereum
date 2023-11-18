@@ -3,16 +3,24 @@ import { ethers } from "hardhat";
 async function main() {
   const [deployer] = await ethers.getSigners();
 
+  const EthereumDIDRegistry = await ethers.getContractFactory("EthereumDIDRegistry");
+
   const AnoncredsRegistry = await ethers.getContractFactory("AnoncredsRegistry");
 
   console.log("Deploying contracts with the account:", deployer.address);
 
-  const registry = await AnoncredsRegistry.deploy();
-
-  await registry.deployed();
+  const ethereumDidRegistry = await EthereumDIDRegistry.deploy();
+  await ethereumDidRegistry.deployed();
 
   console.log(
-    `AnoncredsRegistry deployed to ${registry.address}`
+    `EthereumDIDRegistry deployed to ${ethereumDidRegistry.address}`
+  );
+
+  const anoncredsRegistry = await AnoncredsRegistry.deploy(ethereumDidRegistry.address);
+  await anoncredsRegistry.deployed();
+
+  console.log(
+    `AnoncredsRegistry deployed to ${anoncredsRegistry.address}`
   );
 }
 

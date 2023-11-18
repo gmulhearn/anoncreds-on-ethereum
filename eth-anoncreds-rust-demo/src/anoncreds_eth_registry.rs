@@ -1,10 +1,13 @@
 use std::env;
+use std::error::Error;
 use std::sync::Arc;
 
 use anoncreds::data_types::rev_status_list::serde_revocation_list;
+use anyhow::anyhow;
 use bitvec::{prelude::Lsb0, vec::BitVec};
 use dotenv::dotenv;
 use ethers::contract::EthLogDecode;
+use ethers::providers::Middleware;
 use ethers::signers::coins_bip39::English;
 use ethers::signers::{MnemonicBuilder, Signer};
 use ethers::types::Address;
@@ -24,40 +27,62 @@ include!(concat!(env!("OUT_DIR"), "/anoncreds_registry_contract.rs"));
 
 // Ethereum RPC of the network to use (defaults to the hardhat local network)
 pub const REGISTRY_RPC: &str = "http://localhost:8545";
+
 // Address of the `AnoncredsRegistry` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
-pub const REGISTRY_WETH_ADDRESS: &str = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+pub const ANONCRED_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+
+pub const ETHR_DID_SUB_METHOD: &str = "gmtest";
 
 pub type EtherSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
-pub fn get_default_ethers_client() -> Arc<EtherSigner> {
+pub fn get_writer_ethers_client(id: u32) -> Arc<EtherSigner> {
     dotenv().ok();
 
     let seed = env::var("MNEMONIC").unwrap();
 
     let wallet = MnemonicBuilder::<English>::default()
         .phrase(&*seed)
+        .index(id)
+        .unwrap()
         .build()
         .unwrap()
         .with_chain_id(31337 as u64);
 
     let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
-    let x = Arc::new(SignerMiddleware::new(provider, wallet));
-
-    x
+    Arc::new(SignerMiddleware::new(provider, wallet))
 }
 
-// Hacked up DID method for ethereum addresses (probably not 100% valid)
-pub fn address_as_did(address: &H160) -> String {
+pub fn get_read_only_ethers_client() -> Arc<impl Middleware> {
+    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
+    Arc::new(provider)
+}
+
+pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> AnoncredsRegistry<T> {
+    AnoncredsRegistry::new(
+        ANONCRED_REGISTRY_ADDRESS.parse::<Address>().unwrap(),
+        client,
+    )
+}
+
+pub fn did_identity_as_full_did(address: &H160) -> String {
     // note that debug fmt of address is the '0x..' hex encoding.
     // where as .to_string() (fmt) truncates it
-    format!("did:based:{address:?}")
+    format!("did:ethr:{ETHR_DID_SUB_METHOD}:{address:?}")
+}
+
+pub fn full_did_into_did_identity(did: &str) -> H160 {
+    let identity_hex_str = did
+        .split(":")
+        .last()
+        .expect(&format!("Could not read find identity of DID: {did}"));
+    identity_hex_str.parse().unwrap()
 }
 
 /// Represents an identifier for an immutable resource stored in the registry.
 #[derive(Debug)]
 pub struct DIDResourceId {
-    pub author_pub_key: H160,
+    pub did_identity: H160,
     pub resource_path: String,
 }
 
@@ -67,14 +92,14 @@ impl DIDResourceId {
             panic!("Could not process as DID Resource: {id}")
         };
 
-        let author = did
+        let did_identity_hex_str = did
             .split(":")
             .last()
             .expect(&format!("Could not read find author of DID: {did}"));
-        let author_pub_key = author.parse().unwrap();
+        let did_identity = did_identity_hex_str.parse().unwrap();
 
         DIDResourceId {
-            author_pub_key,
+            did_identity,
             resource_path: resource_path.to_owned(),
         }
     }
@@ -85,22 +110,15 @@ impl DIDResourceId {
     }
 
     pub fn author_did(&self) -> String {
-        address_as_did(&self.author_pub_key)
+        did_identity_as_full_did(&self.did_identity)
     }
 }
 
-/// A structure containing read and write operations for interacting
-/// with the anoncreds ethereum registry.
-pub struct AnoncredsEthRegistry {
-    contract: AnoncredsRegistry<EtherSigner>,
-}
+pub struct AnoncredsEthRegistry;
 
 impl AnoncredsEthRegistry {
-    pub fn new(signer: Arc<EtherSigner>) -> Self {
-        let contract =
-            AnoncredsRegistry::new(REGISTRY_WETH_ADDRESS.parse::<Address>().unwrap(), signer);
-
-        AnoncredsEthRegistry { contract }
+    pub fn new() -> Self {
+        AnoncredsEthRegistry {}
     }
 
     /// Push any JSON serializable [resource] to the registry as an immutable resource.
@@ -110,26 +128,34 @@ impl AnoncredsEthRegistry {
     /// provided [parent_path].
     ///
     /// Returns the resource identifier for the pushed resource.
-    pub async fn submit_json_resource<S>(&self, resource: &S, parent_path: &str) -> DIDResourceId
+    pub async fn submit_json_resource<S>(
+        &self,
+        signer: Arc<impl Middleware>,
+        did: &str,
+        resource: &S,
+        parent_path: &str,
+    ) -> Result<DIDResourceId, Box<dyn Error>>
     where
         S: Serialize,
     {
+        let contract = contract_with_client(signer);
+
         let resource_json = serde_json::to_string(resource).unwrap();
-
         let resource_path = format!("{parent_path}/{}", Uuid::new_v4());
+        let did_identity = full_did_into_did_identity(did);
 
-        self.contract
-            .create_immutable_resource(resource_path.clone(), resource_json)
+        contract
+            .create_immutable_resource(did_identity.clone(), resource_path.clone(), resource_json)
             .send()
             .await
-            .unwrap()
+            .map_err(|e| anyhow!("{e:?}"))?
             .await
-            .unwrap();
+            .map_err(|e| anyhow!("{e:?}"))?;
 
-        DIDResourceId {
-            author_pub_key: self.contract.client().address(),
+        Ok(DIDResourceId {
+            did_identity,
             resource_path,
-        }
+        })
     }
 
     /// Find an immutable resource within the registry, as identified by [resource_id],
@@ -138,12 +164,14 @@ impl AnoncredsEthRegistry {
     where
         D: DeserializeOwned,
     {
+        let client = get_read_only_ethers_client();
+        let contract = contract_with_client(client);
+
         let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
 
-        let resource_json: String = self
-            .contract
+        let resource_json: String = contract
             .get_immutable_resource(
-                did_resource_parts.author_pub_key,
+                did_resource_parts.did_identity,
                 did_resource_parts.resource_path,
             )
             .call()
@@ -159,9 +187,15 @@ impl AnoncredsEthRegistry {
     /// Returns the real timestamp recorded on the ledger
     pub async fn submit_rev_reg_status_update(
         &self,
+        signer: Arc<impl Middleware>,
+        did: &str,
         rev_reg_id: &str,
         revocation_status_list: &anoncreds::types::RevocationStatusList,
     ) -> u64 {
+        let contract = contract_with_client(signer);
+
+        let did_identity = full_did_into_did_identity(did);
+
         // dismantle the inner parts that we want to upload to the registry
         let revocation_status_list_json: Value =
             serde_json::to_value(revocation_status_list).unwrap();
@@ -180,9 +214,12 @@ impl AnoncredsEthRegistry {
             current_accumulator,
         };
 
-        let tx = self
-            .contract
-            .add_rev_reg_status_update(String::from(rev_reg_id), status_list)
+        let tx = contract
+            .add_revocation_registry_status_update(
+                did_identity,
+                String::from(rev_reg_id),
+                status_list,
+            )
             .send()
             .await
             .unwrap()
@@ -196,7 +233,7 @@ impl AnoncredsEthRegistry {
         let mut eth_events = tx
             .logs
             .into_iter()
-            .map(|log| AnoncredsRegistryEvents::decode_log(&RawLog::from(log)).unwrap());
+            .filter_map(|log| AnoncredsRegistryEvents::decode_log(&RawLog::from(log)).ok());
 
         let rev_reg_update_event = eth_events
             .find_map(|log| match log {
@@ -221,13 +258,15 @@ impl AnoncredsEthRegistry {
         rev_reg_id: &str,
         timestamp: u64,
     ) -> (anoncreds::types::RevocationStatusList, u64) {
+        let client = get_read_only_ethers_client();
+        let contract = contract_with_client(client);
+
         let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
 
         // get the timestamps for all revocation status list updates that have been made.
-        let all_timestamps: Vec<u32> = self
-            .contract
-            .get_rev_reg_update_timestamps(
-                rev_reg_resource_id.author_pub_key,
+        let all_timestamps: Vec<u32> = contract
+            .get_revocation_registry_update_timestamps(
+                rev_reg_resource_id.did_identity,
                 String::from(rev_reg_id),
             )
             .call()
@@ -252,10 +291,9 @@ impl AnoncredsEthRegistry {
         let timestamp_of_entry = all_timestamps[index_of_entry];
 
         // get the revocation status list information of the determined index from the registry.
-        let entry: anoncreds_registry::RevocationStatusList = self
-            .contract
-            .get_rev_reg_update_at_index(
-                rev_reg_resource_id.author_pub_key,
+        let entry: anoncreds_registry::RevocationStatusList = contract
+            .get_revocation_registry_update_at_index(
+                rev_reg_resource_id.did_identity,
                 String::from(rev_reg_id),
                 U256::from(index_of_entry),
             )
