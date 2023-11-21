@@ -30,7 +30,7 @@ pub const REGISTRY_RPC: &str = "http://localhost:8545";
 
 // Address of the `AnoncredsRegistry` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
-pub const ANONCRED_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+pub const DEFAULT_ANONCRED_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 pub const ETHR_DID_SUB_METHOD: &str = "gmtest";
 
@@ -59,8 +59,9 @@ pub fn get_read_only_ethers_client() -> Arc<impl Middleware> {
 }
 
 pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> AnoncredsRegistry<T> {
+    let anoncreds_contract_address = env::var("ANONCRED_REGISTRY_ADDRESS").unwrap_or(DEFAULT_ANONCRED_REGISTRY_ADDRESS.to_owned());
     AnoncredsRegistry::new(
-        ANONCRED_REGISTRY_ADDRESS.parse::<Address>().unwrap(),
+        anoncreds_contract_address.parse::<Address>().unwrap(),
         client,
     )
 }
