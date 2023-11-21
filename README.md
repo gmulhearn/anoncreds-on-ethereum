@@ -102,10 +102,23 @@ The demo within the Rust crate walks thru the following:
 
 ## Run
 
-To setup and run the demo:
-1. create your `.env` file in the root of this project. Using `.env.example` as an example.
-2. within `anoncreds-smart-contracts-js`: `npm install`
-3. within `anoncreds-smart-contracts-js`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
-4. within `anoncreds-smart-contracts-js`: use hardhat to deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
-   - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
-5. within `eth-anoncreds-rust-demo`: run the demo!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
+#### Stage 1 - start local ethereum network
+1. Create your `.env` file in the root of this project. Using `.env.example` as an example.
+2. In directory `anoncreds-smart-contracts-js` run `npm install`.
+3. In directory `anoncreds-smart-contracts-js` run `npx hardhat node` to spin up local ethereum network. You have to keep this console window running.
+
+#### Stage 2 - deploy contracts
+1. In directory `anoncreds-smart-contracts-js`: run `npx hardhat run --network localhost scripts/deploy.ts`
+  - This will deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contracts to your local network.
+  - In the output, lookout for the `Contract Address` values for both of these contracts. We are going to need these soon.
+
+#### Stage 3 - run anoncreds demo 
+1. In directory `eth-anoncreds-rust-demo` run the anoncreds issuance demo `ANONCRED_REGISTRY_ADDRESS=<Your_AnoncredsRegistry> cargo run`
+  - This will run demo which will register a `did:ethr` DID
+  - Under that DID, it will create a schema, credential definition and revocation registry definition
+  - The demo then proceed with issuance of credential and proof presentation
+
+#### Stage 4 - resolve DID Document for your DID
+1. In directory `didethr-resolver-js` run `npm install`
+2. In directory `didethr-resolver-js` run `DID_REGISTRY_ADDRESS=<Your_Anoncreds_Registry> DID=<Your_DID> npm run demo`
+  - Make sure to provide correct env variables. You can find your DID in the output of the anoncreds demo from the previous stage.
