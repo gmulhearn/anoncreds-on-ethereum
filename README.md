@@ -107,5 +107,5 @@ To setup and run the demo:
 2. within `anoncreds-smart-contracts-js`: `npm install`
 3. within `anoncreds-smart-contracts-js`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
 4. within `anoncreds-smart-contracts-js`: use hardhat to deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
-5. copy the deployed address into the `REGISTRY_WETH_ADDRESS` const of the [anoncreds_eth_registry.rs file](/eth-anoncreds-rust-demo/src/anoncreds_eth_registry.rs)
-6. within `eth-anoncreds-rust-demo`: run the demo!: `cargo run`
+   - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
+5. within `eth-anoncreds-rust-demo`: run the demo!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
