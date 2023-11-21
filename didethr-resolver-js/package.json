@@ -1,0 +1,15 @@
+{
+  "name": "didethr-resolver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "demo": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "did-resolver": "^4.1.0",
+    "ethr-did-resolver": "^10.0.0"
+  }
+}
