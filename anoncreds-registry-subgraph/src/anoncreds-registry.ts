@@ -24,7 +24,7 @@ export function handleStatusListUpdateEvent(
   let entity = new StatusListUpdateEvent(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.indexedRevocationRegistryId = event.params.indexedRevocationRegistryId
+  entity.indexedRevocationRegistryId = event.params.revocationRegistryId
   entity.revocationRegistryId = event.params.revocationRegistryId
   entity.statusList_revocationList = event.params.statusList.revocationList
   entity.statusList_currentAccumulator =
