@@ -18,7 +18,7 @@ dataSources:
         - StatusListUpdateEvent
       abis:
         - name: AnoncredsRegistry
-          file: ./abis/AnoncredsRegistry.json
+          file: ../anoncreds-smart-contracts-js/artifacts/contracts/AnoncredsRegistry.sol/AnoncredsRegistry.json
       eventHandlers:
         - event: NewResourceEvent(address,string)
           handler: handleNewResourceEvent
