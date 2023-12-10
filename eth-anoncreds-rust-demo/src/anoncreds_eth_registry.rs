@@ -201,10 +201,10 @@ impl AnoncredsEthRegistry {
         let did_identity = full_did_into_did_identity(did);
 
         let ledger_status_list =
-            construct_ledger_status_list_from_anoncreds_data(revocation_status_list);
+            construct_ledger_update_status_list_input_from_anoncreds_data(revocation_status_list);
 
         let tx = contract
-            .add_revocation_registry_status_list_update(
+            .update_revocation_registry_status_list(
                 did_identity,
                 String::from(rev_reg_id),
                 ledger_status_list,
@@ -326,9 +326,9 @@ impl AnoncredsEthRegistry {
 }
 
 // anoncreds type -> Ledger data type
-fn construct_ledger_status_list_from_anoncreds_data(
+fn construct_ledger_update_status_list_input_from_anoncreds_data(
     anoncreds_data: &anoncreds::types::RevocationStatusList,
-) -> anoncreds_registry::RevocationStatusList {
+) -> anoncreds_registry::UpdateRevocationStatusListInput {
     // dismantle the inner parts that we want to upload to the registry
     let revocation_status_list_json: Value = serde_json::to_value(anoncreds_data).unwrap();
     let current_accumulator = revocation_status_list_json
@@ -341,7 +341,7 @@ fn construct_ledger_status_list_from_anoncreds_data(
     let bitvec = serde_revocation_list::deserialize(revocation_list_val).unwrap();
     let serialized_bitvec_revocation_list = serde_json::to_string(&bitvec).unwrap();
 
-    anoncreds_registry::RevocationStatusList {
+    anoncreds_registry::UpdateRevocationStatusListInput {
         revocation_list: serialized_bitvec_revocation_list,
         current_accumulator,
     }

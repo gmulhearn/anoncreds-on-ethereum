@@ -1,5 +1,5 @@
 # Anoncreds on Ethereum Proof of Concept
-Simple project demonstrating how a smart contract could be used as a VDR for anoncreds data (schemas, credential definitions, revocation registry definitions and revocation status list entries).
+Simple project demonstrating how a smart contract could be used as a VDR for anoncreds data (schemas, credential definitions, revocation registry definitions and revocation status lists).
 
 The `anoncreds-smart-contracts-js` directory contains a cookie cutter `hardhat` project for developing and deploying the `AnoncredsRegistry` & [EthereumDIDRegistry](https://github.com/uport-project/ethr-did-registry/blob/master/contracts/EthereumDIDRegistry.sol) smart contracts. Refer to the hardhat generated README for general usage of the hardhat project.
 
@@ -8,7 +8,7 @@ Whilst the `eth-anoncreds-rust-demo` directory contains a rust demo binary, whic
 # Implementation
 To accomplish VDR functionality for immutably storing anoncreds assets, the `AnoncredsRegistry` smart contract has two main features:
 * Storage and retrieval of arbitrary strings (resources), which are uniquely identified by a given `path` and authenticated `didIdentity` (Identity of the did:ethr DID. [See did:ethr spec](https://github.com/decentralized-identity/ethr-did-resolver/blob/master/doc/did-method-spec.md#relationship-to-erc1056))
-* Storage and (somewhat optimised) retrieval of [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) for revocation registries.
+* Storage and optimised retrieval of current (and historical) [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) for revocation registries.
 
 ## did:ethr Controller Authentication
 Both types of resources mentioned above are stored against the identity address of a `did:ethr`. The write operations within `AnoncredsRegistry` require that the message signer (ethereum transaction signer) is coming from the _DID controller_ of the `did:ethr` for which the resource is being written for.
@@ -43,53 +43,67 @@ The above example is an identifier being used to store an anoncreds schema as a 
 
 ## Revocation Status Lists
 ### Problem
-Anoncreds artifacts such as `Schemas`, `Cred Defs` and `Revocation Registry Defs` can be trivially stored as resources found via [DID Resource Identifiers](#did-resource-identifiers), however [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) are an artifact that need special handling for indexing optimisation reasons. 
+Anoncreds artifacts such as `Schemas`, `Cred Defs` and `Revocation Registry Defs` can be trivially stored as resources found via [DID Resource Identifiers](#did-resource-identifiers). These resources never change once uploaded, they are _purely immutable_ however [Revocation Status Lists](https://hyperledger.github.io/anoncreds-spec/#term:revocation-status-list) are an artifact that are _historically immutable_ (the current value can be changed, but the history of the status list is preserved immutably). These artifacts need special handling for historical lookup optimisation reasons.
 
 This is particularly due to the nature of how these artifacts are fetched by anoncred agents. Schemas, Cred Defs and Rev Reg Defs are all typically fetched by agents via an already known ID (in our case we are using [DID Resource Identifiers](#did-resource-identifiers) as the IDs). These are known as they are passed around in data when engaging in protocols (issue-credential, present-proof).
 
-However, revocation status list entries are typically retrieved in a more _dynamic_ fashion. For instance, when a Holder receives a proof request which requests a NRP (non revocation proof) for the time interval of `15-20`, it is their duty to scan the ledger (and/or local cache) to find a moment in time between `15-20`* where the revocation status list shows that their credential is **not** revoked, this status list would then be used by the holder to create a NRP with anoncreds libraries.
+However, revocation status lists are typically retrieved in a more _dynamic_ fashion. For instance, when a Holder receives a proof request which requests a NRP (non revocation proof) for the time interval of `15-20`, it is their duty to scan the ledger (and/or local cache) to find a moment in time between `15-20`* where the historical revocation status list shows that their credential is **not** revoked, this status list would then be used by the holder to create a NRP with anoncreds libraries.
 
-_*note: if there is no entry because this range, then the holder will use the closest entry made before the time `15`_.
+_*note: if there is no entry between this range, then the holder will use the closest entry made before the time `15`_.
 
-In general, we want to optimise the revocation status lists such that; given a revocation registry ID, the revocation status list entries within a particular timestamp range can be found as quickly as possible.
+In general, we want to optimise the revocation status lists such that; given a revocation registry ID, the history of a revocation status list within a particular timestamp range can be found as quickly as possible.
 
 ### Approach
-As such, we should try optimise these ledger look ups in our smart contract such that the consumer does not have to scan the entire list of revocation status list data every time. The semi-optimised approach taken in this demo is as follows:
+As such, we should try optimise these ledger look ups in our smart contract such that the smart contract does not have to store the entire history of status lists, and the consumer does not have to query the ledger more than twice. The semi-optimised approach taken in this demo is as follows:
 
 The smart contract stores 2 maps of data on the ledger:
 ```rust
 struct RevocationStatusList {
     string revocationList;
     string currentAccumulator;
+    ...
 }
 
-mapping(address => mapping(string => RevocationStatusList[])) revStatusListsByRevRegIdByDidIdentity;
+struct RevocationStatusListUpdateMetadata {
+    uint32 blockTimestamp;
+    uint32 blockNumber;
+}
 
-mapping(address => mapping(string => uint32[])) revStatusUpdateTimestampsByRevRegIdByDidIdentity;
+mapping(address => mapping(string => RevocationStatusList)) statusListByRevRegIdByDidIdentity;
+
+mapping(address => mapping(string => RevocationStatusListUpdateMetadata)) statusListUpdateMetadataByRevRegIdByDidIdentity;
 ```
 
-The first map, `revStatusListsByRevRegIdByDidIdentity`, stores the actual `RevocationStatusList` entries uniquely against the ID of the revocation registry AND the authenticated DID identity. The list of `RevocationStatusList`s per revocation registry ID is ordered in chronological order. `RevocationStatusList` items are relatively large due to the data it holds*.
-
-_*There is room for optimisation here, particularly serializing to string is sub-optimal for the data it stores._
-
-The second map, `revStatusUpdateTimestampsByRevRegIdByDidIdentity`, acts as metadata for quicker lookups into the first map based on the desired timestamp. This map stores a list of epoch timestamp (`u32`) entries per revocation registry ID. The timestamp entries in these lists are 1-to-1 with the first map, i.e. index `[i]` in the timestamp list will have a value which is the timestamp associated with the index `[i]` entry in the `RevocationStatusList[]` list from the `revStatusListsByRevRegIdByDidIdentity` map.
-
-```js
-let timestamp = revStatusUpdateTimestampsByRevRegIdByDidIdentity["0xABC"]["revreg1"][i]
-
-let statusList = revStatusListsByRevRegIdByDidIdentity["0xABC"]["revreg1"][i]
-
-// here, `timestamp` is the epoch timestamp for which the `statusList` entry was made on the ledger
+The smart contract also emits an event whenever an update is made:
+```rust
+event StatusListUpdateEvent(
+    string indexed indexedRevocationRegistryId, 
+    string revocationRegistryId, 
+    RevocationStatusList statusList, 
+    uint32 timestamp
+);
 ```
 
-Given the relatively smaller size of lists within `revStatusUpdateTimestampsByRevRegIdByDidIdentity`, the idea is that consumers can retrieve the full list of timestamps for a given `revocationRegistryId`, then they can locally scan thru that list of timestamps to find the `index` of a timestamp which is near a desired timestamp they had in mind (e.g. a non-revoked interval for a proof request). Then this `index` can be used to get the `RevocationStatusList` stored on the ledger at this `index` for the given `revocationRegistryId`. 
+The first map, `statusListByRevRegIdByDidIdentity`, stores the actual current `RevocationStatusList` uniquely against the ID of the revocation registry AND the authenticated DID identity. `RevocationStatusList` items are relatively large due to the data it holds*.
 
-This optimisation is especially neccessary, as fetching the full list of `RevocationStatusList[]`s from the `revStatusListsByRevRegIdByDidIdentity` may be too large of a transaction for some ethereum ledgers/RPCs to handle.
+_*There is more room for optimisation here, particularly serializing to string is sub-optimal for the data it stores._
+
+This map can be used to lookup the CURRENT statusList for a given revocation registry.
+
+The second map, `statusListUpdateMetadataByRevRegIdByDidIdentity`, acts as index for determining the blocknumber of a status list update nearest to a desired timestamp. This map stores a list of the timestamps and blocknumbers for each status list update.
+
+Given the relatively smaller size of lists within `statusListUpdateMetadataByRevRegIdByDidIdentity`, the idea is that consumers can retrieve the full list of timestamps for a given `revocationRegistryId`, then they can locally scan thru that list of metadata to find the `blockNumber` of a statuslist update which is near a desired timestamp they had in mind (e.g. a non-revoked interval for a proof request). 
+
+Then this `blockNumber` can be used to get the `StatusListUpdateEvent` event emitted at the exact `blockNumber` for the given `revocationRegistryId`. The Ethereum API is designed/optimised for these sorts of indexed event lookups*.
+
+_*The Ethereum API does not support indexed event querying by timestamp range, only by blocknumber range. This limitation is why we need to use the metadata to translate timestamp -> blocknumber._
+
+This optimisation is especially neccessary, as storing and fetching the full historical list of `RevocationStatusList`s from the smart contract may be too large of a transaction for some ethereum ledgers/RPCs to handle.
 
 An example of how this approach is used can be seen [here](./eth-anoncreds-rust-demo/src/anoncreds_eth_registry.rs#L219).
 
 #### Disclaimer
-_The 'optimisation' approach taken by this demo is far from perfect. It is just a slight optimisation done to draw attention to the idea that revocation status lists need optimisation considerations, particularly for `timestamp` lookups._
+_The 'optimisation' approach taken by this demo is not perfect. It is just a slight optimisation done to draw attention to the idea that revocation status lists need optimisation considerations, particularly for `timestamp` lookups._
 
 # Demo
 The demo within the Rust crate walks thru the following:
