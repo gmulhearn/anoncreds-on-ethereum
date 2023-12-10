@@ -1,0 +1,304 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didRegistryAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "path",
+        "type": "string"
+      }
+    ],
+    "name": "NewResourceEvent",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "indexedRevocationRegistryId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "revocationRegistryId",
+        "type": "string"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "revocationList",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "currentAccumulator",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "blockTimestamp",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "blockNumber",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct AnoncredsRegistry.RevocationStatusListUpdateMetadata",
+            "name": "metadata",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "blockTimestamp",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "blockNumber",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct AnoncredsRegistry.RevocationStatusListUpdateMetadata",
+            "name": "previousMetadata",
+            "type": "tuple"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct AnoncredsRegistry.RevocationStatusList",
+        "name": "statusList",
+        "type": "tuple"
+      }
+    ],
+    "name": "StatusListUpdateEvent",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "path",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "content",
+        "type": "string"
+      }
+    ],
+    "name": "createImmutableResource",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "didRegistry",
+    "outputs": [
+      {
+        "internalType": "contract EthereumDIDRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "revocationRegistryId",
+        "type": "string"
+      }
+    ],
+    "name": "getCurrentRevocationRegistryStatusList",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "revocationList",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "currentAccumulator",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "blockTimestamp",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "blockNumber",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct AnoncredsRegistry.RevocationStatusListUpdateMetadata",
+            "name": "metadata",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "blockTimestamp",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "blockNumber",
+                "type": "uint32"
+              }
+            ],
+            "internalType": "struct AnoncredsRegistry.RevocationStatusListUpdateMetadata",
+            "name": "previousMetadata",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct AnoncredsRegistry.RevocationStatusList",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "path",
+        "type": "string"
+      }
+    ],
+    "name": "getImmutableResource",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "revocationRegistryId",
+        "type": "string"
+      }
+    ],
+    "name": "getRevocationRegistryStatusListUpdatesMetadata",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint32",
+            "name": "blockTimestamp",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "blockNumber",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct AnoncredsRegistry.RevocationStatusListUpdateMetadata[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "didIdentity",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "revocationRegistryId",
+        "type": "string"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "revocationList",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "currentAccumulator",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct AnoncredsRegistry.UpdateRevocationStatusListInput",
+        "name": "statusListInput",
+        "type": "tuple"
+      }
+    ],
+    "name": "updateRevocationRegistryStatusList",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
