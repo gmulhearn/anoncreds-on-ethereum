@@ -231,7 +231,10 @@ impl AnoncredsEthRegistry {
             })
             .unwrap();
 
-        let ledger_recorded_timestamp = status_list_update_event.timestamp as u64;
+        let ledger_recorded_timestamp = status_list_update_event
+            .status_list
+            .metadata
+            .block_timestamp as u64;
 
         ledger_recorded_timestamp
     }
@@ -368,7 +371,7 @@ fn construct_anoncreds_status_list_from_ledger_event(
         did.try_into().unwrap(),
         recapacitied_rev_list,
         Some(current_accumulator),
-        Some(ledger_event.timestamp.into()),
+        Some(ledger_event.status_list.metadata.block_timestamp.into()),
     )
     .unwrap()
 }
