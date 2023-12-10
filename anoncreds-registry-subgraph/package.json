@@ -4,10 +4,10 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ gmulhearn/anoncreds-registry-subgraph",
-    "create-local": "graph create --node http://localhost:8020/ gmulhearn/anoncreds-registry-subgraph",
-    "remove-local": "graph remove --node http://localhost:8020/ gmulhearn/anoncreds-registry-subgraph",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 gmulhearn/anoncreds-registry-subgraph",
+    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ anoncreds-registry-subgraph",
+    "create-local": "graph create --node http://localhost:8020/ anoncreds-registry-subgraph",
+    "remove-local": "graph remove --node http://localhost:8020/ anoncreds-registry-subgraph",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 anoncreds-registry-subgraph",
     "test": "graph test"
   },
   "dependencies": {

@@ -23,6 +23,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+#[cfg(feature = "thegraph")]
+use crate::subgraph_query;
+
 // Include generated contract types from build script
 include!(concat!(env!("OUT_DIR"), "/anoncreds_registry_contract.rs"));
 
@@ -245,13 +248,27 @@ impl AnoncredsEthRegistry {
     /// Returns the closest revocation status list, and the timestamp of that revocation
     /// status list entry. (The timestamp is also within the status list object, but is
     /// not accessible).
-    ///
+    #[allow(unreachable_code)]
+    pub async fn get_rev_reg_status_list_as_of_timestamp(
+        &self,
+        rev_reg_id: &str,
+        timestamp: u64,
+    ) -> (anoncreds::types::RevocationStatusList, u64) {
+        #[cfg(feature = "thegraph")]
+        return self
+            .get_rev_reg_status_list_as_of_timestamp_via_subgraph(rev_reg_id, timestamp)
+            .await;
+
+        self.get_rev_reg_status_list_as_of_timestamp_via_pure_ethereum_api(rev_reg_id, timestamp)
+            .await
+    }
+
     /// This function works by doing the following:
     /// 1. get ALL status list update metadatas from the ledger
     /// 2. from those metadatas, find the timestamp & block number closest to [timestamp]
     /// 3. query the ledger for a status list update event for the rev_reg_id and block number from 2.
     /// 4. reconstruct the anoncreds data from the found event
-    pub async fn get_rev_reg_status_list_as_of_timestamp(
+    async fn get_rev_reg_status_list_as_of_timestamp_via_pure_ethereum_api(
         &self,
         rev_reg_id: &str,
         timestamp: u64,
@@ -318,13 +335,41 @@ impl AnoncredsEthRegistry {
         let status_list_update_event = &filtered_status_list_update_events[0];
 
         // reconstruct the anoncreds RevocationStatusList from the ledger event data
-        let rev_list = construct_anoncreds_status_list_from_ledger_event(
+        let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
             rev_reg_id,
             &rev_reg_resource_id.author_did(),
-            status_list_update_event,
+            &status_list_update_event.status_list.revocation_list,
+            &status_list_update_event.status_list.current_accumulator,
+            status_list_update_event
+                .status_list
+                .metadata
+                .block_timestamp,
         );
 
         (rev_list, suitable_update_timestamp)
+    }
+
+    #[cfg(feature = "thegraph")]
+    async fn get_rev_reg_status_list_as_of_timestamp_via_subgraph(
+        &self,
+        rev_reg_id: &str,
+        timestamp: u64,
+    ) -> (anoncreds::types::RevocationStatusList, u64) {
+        let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
+
+        let res = subgraph_query::get_status_list_event_most_recent_to(rev_reg_id, timestamp).await;
+
+        let timestamp: u32 = res.timestamp.parse().unwrap();
+
+        let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
+            rev_reg_id,
+            &rev_reg_resource_id.author_did(),
+            &res.status_list,
+            &res.current_accum,
+            timestamp,
+        );
+
+        (rev_list, timestamp.into())
     }
 }
 
@@ -351,27 +396,26 @@ fn construct_ledger_update_status_list_input_from_anoncreds_data(
 }
 
 // ledger event data type (plus other data) -> anoncreds type
-fn construct_anoncreds_status_list_from_ledger_event(
+fn construct_anoncreds_status_list_from_ledger_event_data(
     rev_reg_id: &str,
     did: &str,
-    ledger_event: &StatusListUpdateEventFilter,
+    ledger_event_status_list: &str,
+    ledger_event_current_accum: &str,
+    ledger_event_timestamp: u32,
 ) -> anoncreds::types::RevocationStatusList {
-    let status_list = &ledger_event.status_list;
-
     // reconstruct the [anoncreds::types::RevocationStatusList] from the registry data.
-    let mut rev_list: BitVec = serde_json::from_str(&status_list.revocation_list).unwrap();
+    let mut rev_list: BitVec = serde_json::from_str(&ledger_event_status_list).unwrap();
     let mut recapacitied_rev_list = BitVec::<usize, Lsb0>::with_capacity(64);
     recapacitied_rev_list.append(&mut rev_list);
 
-    let current_accumulator =
-        serde_json::from_value(json!(&status_list.current_accumulator)).unwrap();
+    let current_accumulator = serde_json::from_value(json!(&ledger_event_current_accum)).unwrap();
 
     anoncreds::types::RevocationStatusList::new(
         Some(rev_reg_id),
         did.try_into().unwrap(),
         recapacitied_rev_list,
         Some(current_accumulator),
-        Some(ledger_event.status_list.metadata.block_timestamp.into()),
+        Some(ledger_event_timestamp.into()),
     )
     .unwrap()
 }

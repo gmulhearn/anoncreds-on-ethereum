@@ -118,7 +118,7 @@ The demo within the Rust crate walks thru the following:
 
 To setup and run the demo:
 1. create your `.env` file in the root of this project. Using `.env.example` as an example.
-2. within `anoncreds-smart-contracts-js`: `npm install`
+2. `npm install`
 3. within `anoncreds-smart-contracts-js`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
 4. within `anoncreds-smart-contracts-js`: use hardhat to deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
    - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
