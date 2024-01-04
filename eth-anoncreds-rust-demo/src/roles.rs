@@ -322,7 +322,7 @@ impl Issuer {
         .unwrap();
         println!("Issuer: submitting rev list initial entry...");
         let ledger_timestamp = anoncreds_registry
-            .submit_rev_reg_status_update(
+            .submit_rev_reg_status_list_update(
                 signer.clone(),
                 &issuer_did,
                 &rev_reg_def_resource_id.to_id(),
@@ -457,7 +457,7 @@ impl Issuer {
 
         let ledger_timestamp = self
             .anoncreds_registry
-            .submit_rev_reg_status_update(
+            .submit_rev_reg_status_list_update(
                 self.signer.clone(),
                 &self.issuer_did,
                 &self.demo_data.rev_reg_def_resource_id.to_id(),

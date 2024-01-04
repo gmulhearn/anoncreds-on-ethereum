@@ -14,19 +14,35 @@ contract AnoncredsRegistry {
     /// storage of string blobs, which are immutable once uploaded, and identified by its path + DID Identity
     mapping(address => mapping(string => string)) private immutableResourceByPathByDidIdentity;
 
-    /// where revStatusUpdateTimestamps[i] == the timestamp of revStatusLists[i] below
-    /// note that by issuer (address =>) is only needed for security purposes.
-    mapping(address => mapping(string => uint32[])) private revStatusUpdateTimestampsByRevRegIdByDidIdentity;
-
-    /// storage of revocation status lists, by the revocation registry ID, by the issuer.
+    /// storage of current revocation status list, by the revocation registry ID, by the issuer.
     /// note that by issuer (address =>) is only needed for security purposes
-    mapping(address => mapping(string => RevocationStatusList[])) private revStatusListsByRevRegIdByDidIdentity;
+    mapping(address => mapping(string => RevocationStatusList)) private statusListByRevRegIdByDidIdentity;
+
+    /// storage of status list update metadatas, by the revocation registry ID, by the issuer.
+    /// this exists for indexing purposes; clients can use this list to find an update blocknumber/timestamp
+    /// nearest to their desired timestamp, and then perform a StatusListUpdateEvent event query
+    /// to find the status list at that timestamp.
+    /// note that by issuer (address =>) is only needed for security purposes
+    mapping(address => mapping(string => RevocationStatusListUpdateMetadata[])) private statusListUpdateMetadataByRevRegIdByDidIdentity;
     
+    struct UpdateRevocationStatusListInput {
+        string revocationList; // serialized bitvec (RON notation i believe) - TODO optimise
+        string currentAccumulator;
+    }
+
     /// simplified revocation status list. Containing only the data we care about, 
     /// the rest can be constructed by the client with other metadata.
     struct RevocationStatusList {
-        string revocationList; // serialized bitvec (RON notation i believe)
+        string revocationList; // serialized bitvec (RON notation i believe) - TODO optimise
         string currentAccumulator;
+        RevocationStatusListUpdateMetadata metadata;
+        RevocationStatusListUpdateMetadata previousMetadata;
+    }
+
+    struct RevocationStatusListUpdateMetadata {
+        uint32 blockTimestamp;
+        // TODO - is uint32 fine for block number? we want to go as low as feasible
+        uint32 blockNumber;
     }
 
     modifier onlyDidIdentityOwner(address identity) {
@@ -34,8 +50,8 @@ contract AnoncredsRegistry {
         require (actor == didRegistry.identityOwner(identity), "bad_actor");
         _;
     }
-    event NewResource(address didIdentity, string path);
-    event NewRevRegStatusUpdate(string revocationRegistryId, uint indexInStatusList, uint32 timestamp);
+    event NewResourceEvent(address didIdentity, string path);
+    event StatusListUpdateEvent(string indexed indexedRevocationRegistryId, string revocationRegistryId, RevocationStatusList statusList);
 
     constructor(address didRegistryAddress) {
         didRegistry = EthereumDIDRegistry(didRegistryAddress);
@@ -52,7 +68,7 @@ contract AnoncredsRegistry {
     function createImmutableResource(address didIdentity, string memory path, string memory content) public onlyDidIdentityOwner(didIdentity) {
         require(!doesImmutableResourceExist(didIdentity, path), "Resource already created with this Path and DID");
         immutableResourceByPathByDidIdentity[didIdentity][path] = content;
-        emit NewResource(didIdentity, path);
+        emit NewResourceEvent(didIdentity, path);
     }
 
     /// Get the [content] of an immutable resource in this registry, identified by it's [path] and [didIdentity].
@@ -60,43 +76,55 @@ contract AnoncredsRegistry {
         return immutableResourceByPathByDidIdentity[didIdentity][path];
     }
 
-    /// Stores a new [statusList] within the list of status lists stored for the given [revocationRegistryId] (and [didIdentity]).
+    /// Stores an updated [statusList] for the given [revocationRegistryId] (and [didIdentity]).
     ///
-    /// Emits an event, [NewRevRegStatusUpdate], which contains the registry-determined timestamp for the statusList
+    /// Emits an event, [StatusListUpdateEvent], which contains the registry-determined timestamp for the statusList
     /// entry.
-    function addRevocationRegistryStatusUpdate(address didIdentity, string memory revocationRegistryId, RevocationStatusList memory statusList) public onlyDidIdentityOwner(didIdentity) {
-        uint32 timestamp = uint32(block.timestamp);
+    function updateRevocationRegistryStatusList(address didIdentity, string memory revocationRegistryId, UpdateRevocationStatusListInput memory statusListInput) public onlyDidIdentityOwner(didIdentity) {
+        uint32 blockTimestamp = uint32(block.timestamp);
+        uint32 blockNumber = uint32(block.number);
 
-        revStatusUpdateTimestampsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].push(timestamp);
-        revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].push(statusList);
+        RevocationStatusListUpdateMetadata memory previousMetadata = statusListByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].metadata;
 
-        uint newListLength = revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].length;
-        uint indexOfNewEntry = newListLength - 1;
+        // Enforce no simultaneous updates
+        require(blockNumber > previousMetadata.blockNumber);
+        require(blockTimestamp > previousMetadata.blockTimestamp);
 
-        emit NewRevRegStatusUpdate(revocationRegistryId, indexOfNewEntry, timestamp);
+        RevocationStatusListUpdateMetadata memory metadata = RevocationStatusListUpdateMetadata(
+            blockTimestamp,
+            blockNumber
+        );
+
+        RevocationStatusList memory statusList = RevocationStatusList(
+            statusListInput.revocationList,
+            statusListInput.currentAccumulator,
+            metadata,
+            previousMetadata
+        );
+
+        // store an update metadata for client-side indexing purposes
+        statusListUpdateMetadataByRevRegIdByDidIdentity[didIdentity][revocationRegistryId].push(metadata);
+
+        // set the new list
+        statusListByRevRegIdByDidIdentity[didIdentity][revocationRegistryId] = statusList;
+        emit StatusListUpdateEvent(revocationRegistryId, revocationRegistryId, statusList);
+    }
+
+    function getCurrentRevocationRegistryStatusList(address didIdentity, string memory revocationRegistryId) public view returns (RevocationStatusList memory) {
+        return statusListByRevRegIdByDidIdentity[didIdentity][revocationRegistryId];
     }
 
     /// Return the list of timestamps of revocation status list update that have been made for the given
     /// [revocationRegistryId] and [didIdentity].
     /// This list will naturally be chronologically sorted.
-    /// The indexes in this list are 1-to-1 with the full status list list. For instance, index "5" in this list
-    /// may contain a timestamp like "1697948227", this indicates that the status list at index "5" has a timestamp
-    /// of "1697948227".
     /// 
     /// The intention is that the data size of this list will be smaller than the entire list of revocation
     /// status list entries. So a consumer looking for a revocation status list entry near a certain timestamp
     /// can retrieve this list of timestamps, then find the index of their desired timestamp, then look up that 
-    /// index to get the full [RevocationStatusList] details via [getRevocationRegistryUpdateAtIndex].
+    /// index to get the full [RevocationStatusList] details via StatusListUpdateEvent event filtering.
     /// 
     /// Consumers may additionally wish to cache this list to avoid unneccessary future look ups.
-    function getRevocationRegistryUpdateTimestamps(address didIdentity, string memory revocationRegistryId) public view returns (uint32[] memory) {
-        return revStatusUpdateTimestampsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId];
-    }
-
-    /// Returns the full [RevocationStatusList] entry information of a particular revocation registry at a particular index.
-    ///
-    /// consumers are intended to use [getRevocationRegistryUpdateTimestamps] to know exactly what [index] they are looking for.
-    function getRevocationRegistryUpdateAtIndex(address didIdentity, string memory revocationRegistryId, uint index) public view returns (RevocationStatusList memory) {
-        return revStatusListsByRevRegIdByDidIdentity[didIdentity][revocationRegistryId][index];
+    function getRevocationRegistryStatusListUpdatesMetadata(address didIdentity, string memory revocationRegistryId) public view returns (RevocationStatusListUpdateMetadata[] memory) {
+        return statusListUpdateMetadataByRevRegIdByDidIdentity[didIdentity][revocationRegistryId];
     }
 }
