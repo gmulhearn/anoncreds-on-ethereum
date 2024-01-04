@@ -3,7 +3,9 @@ name = "eth-anoncreds-rust-demo"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+# enable feature to use local subgraph queries
+thegraph = []
 
 [dependencies]
 serde = "1"
@@ -17,6 +19,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 dotenv = "0.15"
 bitvec = "1.0.1"
 anyhow = "1.0.75"
+reqwest = "0.11"
 
 [build-dependencies]
 ethers = "2"

@@ -1,0 +1,4 @@
+{
+    "name": "ether-anoncreds-js-components",
+    "workspaces": ["anoncreds-registry-subgraph", "anoncreds-smart-contracts-js"]
+  }

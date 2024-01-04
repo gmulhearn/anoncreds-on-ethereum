@@ -54,7 +54,7 @@ _*note: if there is no entry between this range, then the holder will use the cl
 In general, we want to optimise the revocation status lists such that; given a revocation registry ID, the history of a revocation status list within a particular timestamp range can be found as quickly as possible.
 
 ### Approach
-As such, we should try optimise these ledger look ups in our smart contract such that the smart contract does not have to store the entire history of status lists, and the consumer does not have to query the ledger more than twice. The semi-optimised approach taken in this demo is as follows:
+As such, we should try optimise these ledger look ups in our smart contract such that the smart contract does not have to store the entire history of status lists, and the consumer does not have to query the ledger many times. The semi-optimised approach taken in this demo is as follows:
 
 The smart contract stores 2 maps of data on the ledger:
 ```rust
@@ -118,8 +118,26 @@ The demo within the Rust crate walks thru the following:
 
 To setup and run the demo:
 1. create your `.env` file in the root of this project. Using `.env.example` as an example.
-2. within `anoncreds-smart-contracts-js`: `npm install`
+2. `npm install`
 3. within `anoncreds-smart-contracts-js`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
 4. within `anoncreds-smart-contracts-js`: use hardhat to deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
    - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
 5. within `eth-anoncreds-rust-demo`: run the demo!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
+
+## Integration with The Graph
+As mentioned above, a common use case for holders when creating NRPs is to find `StatusListUpdateEvent` events which occur between a range of time, or as to close a timestamp as possible without being later. The native Ethereum API does not support that type of event filtering, which is what lead to the [approach discussed above](#approach). However, an alternative to that, is to use Ethereum indexing infrastructure, such as [The Graph](https://thegraph.com/), which allows for these queries to be performed.
+
+Within [the subgraph directory](./anoncreds-registry-subgraph/) is a subgraph project which can be used to index the `AnoncredsRegistry` smart contract.
+
+When the subgraph is deployed, it can be queried with graphql to "get `StatusListUpdateEvent`s between a range of time" and much more. This is an alternative demo flow for this project.
+
+## Local Graph Setup and Demo
+1. complete steps 1-4 of [above](#run)
+2. clone the [graph-node repo](https://github.com/graphprotocol/graph-node)
+3. run the graph-node via docker compose (`cd docker && docker compose up`)
+4. within the `anoncreds-registry-subgraph`: 
+    1. If your contract address for `AnoncredsRegistry` is different to the default, update the address in the [subgraph.yaml](./anoncreds-registry-subgraph/subgraph.yaml)
+    2. codegen `npm run codegen`
+    3. create the local subgraph: `npm run create-local`
+    4. deploy the local subgraph: `npm run deploy-local`
+5. within the `eth-anoncreds-rust-demo`: run the demo with the graph feature enabled!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run --features thegraph`
