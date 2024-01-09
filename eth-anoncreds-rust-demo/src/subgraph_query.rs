@@ -55,7 +55,7 @@ pub struct MostRecentStatusListUpdateQueryResult {
     #[serde(rename = "revocationRegistryId")]
     pub rev_reg_id: String,
     #[serde(rename = "statusList_currentAccumulator")]
-    pub current_accum: String,
+    pub current_accum_hex: String,
     #[serde(rename = "statusList_revocationList")]
     pub status_list_hex: String,
     #[serde(rename = "statusList_metadata_blockTimestamp")]

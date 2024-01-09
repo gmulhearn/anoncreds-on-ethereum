@@ -299,7 +299,7 @@ impl Issuer {
             issuer_did.clone(),
             rev_reg_def_tag,
             RegistryType::CL_ACCUM,
-            10,
+            100,
             &mut tw,
         )
         .unwrap();

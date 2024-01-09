@@ -11,6 +11,7 @@ thegraph = []
 serde = "1"
 serde_json = "1"
 anoncreds = { git = "https://github.com/hyperledger/anoncreds-rs.git", tag = "v0.1.0" }
+ursa = { version = "0.3.7", default-features = false, features = ["cl_native", "serde"] }
 uuid = { version = "1", features = ["v4"] }
 
 ethers = "2"

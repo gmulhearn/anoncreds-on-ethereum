@@ -22,6 +22,7 @@ use ethers::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
+use ursa::pair::PointG2;
 use uuid::Uuid;
 
 #[cfg(feature = "thegraph")]
@@ -347,7 +348,11 @@ impl AnoncredsEthRegistry {
                 .revocation_list_bit_vec
                 .0
                 .to_vec(),
-            &status_list_update_event.status_list.current_accumulator,
+            status_list_update_event
+                .status_list
+                .current_accumulator
+                .0
+                .to_vec(),
             status_list_update_event
                 .status_list
                 .metadata
@@ -373,7 +378,7 @@ impl AnoncredsEthRegistry {
             rev_reg_id,
             &rev_reg_resource_id.author_did(),
             hex_to_bytes(&res.status_list_hex),
-            &res.current_accum,
+            hex_to_bytes(&res.current_accum_hex),
             timestamp,
         );
 
@@ -393,13 +398,15 @@ fn construct_ledger_update_status_list_input_from_anoncreds_data(
         .as_str()
         .unwrap()
         .to_owned();
+    let current_accumulator_bytes = anoncreds_accumulator_str_to_bytes(&current_accumulator);
+
     let revocation_list_val = revocation_status_list_json.get("revocationList").unwrap();
     let bitvec = serde_revocation_list::deserialize(revocation_list_val).unwrap();
     let bitvec_as_bytes = bitvec_to_bytes(bitvec);
 
     anoncreds_registry::UpdateRevocationStatusListInput {
         revocation_list_bit_vec: ethers::types::Bytes::from(bitvec_as_bytes),
-        current_accumulator,
+        current_accumulator: ethers::types::Bytes::from(current_accumulator_bytes),
     }
 }
 
@@ -408,11 +415,13 @@ fn construct_anoncreds_status_list_from_ledger_event_data(
     rev_reg_id: &str,
     did: &str,
     ledger_event_status_list_bit_vec: Vec<u8>,
-    ledger_event_current_accum: &str,
+    ledger_event_current_accum_bytes: Vec<u8>,
     ledger_event_timestamp: u32,
 ) -> anoncreds::types::RevocationStatusList {
     let rev_list = bytes_to_bitvec(ledger_event_status_list_bit_vec);
-    let current_accumulator = serde_json::from_value(json!(&ledger_event_current_accum)).unwrap();
+    let current_accumulator_str =
+        anoncreds_accumulator_bytes_to_str(&ledger_event_current_accum_bytes);
+    let current_accumulator = serde_json::from_value(json!(&current_accumulator_str)).unwrap();
 
     anoncreds::types::RevocationStatusList::new(
         Some(rev_reg_id),
@@ -422,6 +431,20 @@ fn construct_anoncreds_status_list_from_ledger_event_data(
         Some(ledger_event_timestamp.into()),
     )
     .unwrap()
+}
+
+fn anoncreds_accumulator_str_to_bytes(accumulator: &str) -> Vec<u8> {
+    PointG2::from_string(accumulator)
+        .unwrap()
+        .to_bytes()
+        .unwrap()
+}
+
+fn anoncreds_accumulator_bytes_to_str(accumulator: &[u8]) -> String {
+    PointG2::from_bytes(accumulator)
+        .unwrap()
+        .to_string()
+        .unwrap()
 }
 
 fn bitvec_to_bytes(bitvec: BitVec) -> Vec<u8> {
