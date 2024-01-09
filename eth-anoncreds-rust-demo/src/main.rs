@@ -1,5 +1,6 @@
 pub mod anoncreds_eth_registry;
 pub mod eth_did_registry;
+pub mod ledger;
 pub mod roles;
 #[cfg(feature = "thegraph")]
 pub mod subgraph_query;

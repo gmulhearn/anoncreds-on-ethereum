@@ -2,10 +2,7 @@ use std::env;
 use std::error::Error;
 use std::sync::Arc;
 
-use anoncreds::data_types::issuer_id::IssuerId;
-use anoncreds::data_types::rev_status_list::serde_revocation_list;
 use anyhow::anyhow;
-use bitvec::vec::BitVec;
 use dotenv::dotenv;
 use ethers::contract::EthLogDecode;
 use ethers::providers::Middleware;
@@ -21,10 +18,10 @@ use ethers::{
     types::H160,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::{json, Value};
-use ursa::pair::PointG2;
 use uuid::Uuid;
 
+use crate::ledger::ledger_data::LedgerData;
+use crate::ledger::status_list_update_ledger_data::StatusListUpdateLedgerData;
 #[cfg(feature = "thegraph")]
 use crate::subgraph_query;
 
@@ -137,7 +134,7 @@ impl AnoncredsEthRegistry {
     /// The resource is given a random ID, under the provided [parent_path].
     ///
     /// Returns the resource identifier for the pushed resource.
-    pub async fn submit_json_resource<S>(
+    pub async fn submit_immutable_json_resource<S>(
         &self,
         signer: Arc<impl Middleware>,
         did: &str,
@@ -169,7 +166,7 @@ impl AnoncredsEthRegistry {
 
     /// Find an immutable resource within the registry, as identified by [resource_id],
     /// then JSON deserialize the resource contents into type [D].
-    pub async fn get_json_resource<D>(&self, resource_id: &str) -> D
+    pub async fn get_immutable_json_resource<D>(&self, resource_id: &str) -> D
     where
         D: DeserializeOwned,
     {
@@ -190,35 +187,32 @@ impl AnoncredsEthRegistry {
         serde_json::from_str(&resource_json).unwrap()
     }
 
-    /// Publish a new revocation status list for the revocation registry
-    /// identifier by [rev_reg_id] to the registry.
-    ///
-    /// Returns the real timestamp recorded on the ledger
-    pub async fn submit_rev_reg_status_list_update(
+    pub async fn submit_mutable_resource<T>(
         &self,
         signer: Arc<impl Middleware>,
         did: &str,
-        rev_reg_id: &str,
-        revocation_status_list: &anoncreds::types::RevocationStatusList,
-    ) -> u64 {
+        resource: T,
+        resource_path: &str,
+    ) -> Result<u64, Box<dyn Error>>
+    where
+        T: LedgerData,
+    {
         let contract = contract_with_client(signer);
 
+        let resource_bytes = resource.into_ledger_bytes();
         let did_identity = full_did_into_did_identity(did);
 
-        let ledger_status_list =
-            construct_ledger_update_status_list_input_from_anoncreds_data(revocation_status_list);
-
         let tx = contract
-            .update_revocation_registry_status_list(
-                did_identity,
-                String::from(rev_reg_id),
-                ledger_status_list,
+            .update_mutable_resource(
+                did_identity.clone(),
+                resource_path.to_owned(),
+                ethers::types::Bytes::from(resource_bytes),
             )
             .send()
             .await
-            .unwrap()
+            .map_err(|e| anyhow!("{e:?}"))?
             .await
-            .unwrap()
+            .map_err(|e| anyhow!("{e:?}"))?
             .unwrap();
 
         // extract the emitted [AnoncredsRegistryEvents::StatusListUpdateEventFilter] event
@@ -230,18 +224,139 @@ impl AnoncredsEthRegistry {
             .find_map(|log| {
                 let contract_event = AnoncredsRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(AnoncredsRegistryEvents::StatusListUpdateEventFilter(inner)) => Some(inner),
+                    Ok(AnoncredsRegistryEvents::MutableResourceUpdateEventFilter(inner)) => {
+                        Some(inner)
+                    }
                     _ => None,
                 }
             })
             .unwrap();
 
-        let ledger_recorded_timestamp = status_list_update_event
-            .status_list
-            .metadata
-            .block_timestamp as u64;
+        let ledger_recorded_timestamp = status_list_update_event.resource.metadata.block_timestamp;
 
-        ledger_recorded_timestamp
+        Ok(ledger_recorded_timestamp)
+    }
+
+    /// This function works by doing the following:
+    /// 1. get ALL resource update metadatas from the ledger
+    /// 2. from those metadatas, find the timestamp & block number closest to [timestamp]
+    /// 3. query the ledger for a resource update event for the resource_id and block number from 2.
+    /// 4. reconstruct the data from the found event
+    #[allow(unreachable_code)]
+    pub async fn get_mutable_resource_as_of_timestamp<T>(
+        &self,
+        resource_id: &str,
+        timestamp: u64,
+    ) -> (T, u64)
+    where
+        T: LedgerData,
+    {
+        #[cfg(feature = "thegraph")]
+        return self
+            .get_mutable_resource_as_of_timestamp_via_subgraph::<T>(resource_id, timestamp)
+            .await;
+
+        self.get_mutable_resource_as_of_timestamp_via_pure_ethereum_api::<T>(resource_id, timestamp)
+            .await
+    }
+
+    async fn get_mutable_resource_as_of_timestamp_via_subgraph<T>(
+        &self,
+        resource_id: &str,
+        timestamp: u64,
+    ) -> (T, u64)
+    where
+        T: LedgerData,
+    {
+        let resource_id = DIDResourceId::from_id(resource_id.to_owned());
+
+        let res =
+            subgraph_query::get_resource_update_event_most_recent_to(resource_id, timestamp).await;
+
+        let resource_bytes = hex_to_bytes(&res.content_hex);
+
+        (
+            T::from_ledger_bytes(&resource_bytes),
+            res.timestamp.parse().unwrap(),
+        )
+    }
+
+    async fn get_mutable_resource_as_of_timestamp_via_pure_ethereum_api<T>(
+        &self,
+        resource_id: &str,
+        timestamp: u64,
+    ) -> (T, u64)
+    where
+        T: LedgerData,
+    {
+        let client = get_read_only_ethers_client();
+        let contract = contract_with_client(client.clone());
+
+        let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
+        let resource_path = did_resource_parts.resource_path.clone();
+
+        // get the metadata (timestamp + block number) for all mutable resource updates that have been made.
+        let all_updates_metadata: Vec<MutableResourceUpdateMetadata> = contract
+            .get_mutable_resource_updates_metadata(
+                did_resource_parts.did_identity,
+                resource_path.clone(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        if all_updates_metadata.is_empty() {
+            panic!("No update entries for resource: {resource_path}")
+        }
+
+        // TODO - here we might binary search rather than iter all
+        // Find the index of the timestamp that is closest to the provided [timestamp]:
+        // * scan the list until a timestamp is greater than the desired [timestamp],
+        //  then minus one from the index of that item.
+        // * OR, if no entries are greater than, just pick the last/latest entry.
+        let index_of_suitable_update_metadata = all_updates_metadata
+            .iter()
+            .position(|ts| ts.block_timestamp as u64 > timestamp)
+            .unwrap_or(all_updates_metadata.len())
+            - 1;
+        let suitable_update_metadata = &all_updates_metadata[index_of_suitable_update_metadata];
+        let suitable_update_block_number = suitable_update_metadata.block_number;
+
+        // Create an event filter for resource updates, filtering for update events
+        // for the specific resource path + did identity and for the exact block number. This should result
+        // in the exact resource update we want being found.
+        let precise_status_list_update_event_filter = contract
+            .mutable_resource_update_event_filter()
+            .filter
+            .topic1(did_resource_parts.did_identity)
+            .topic2(U256::from(keccak256(resource_path)))
+            .from_block(suitable_update_block_number)
+            .to_block(suitable_update_block_number);
+
+        // Query this event filter on the contract
+        let filtered_resource_update_events: Vec<_> = client
+            .get_logs(&precise_status_list_update_event_filter)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter_map(|log| {
+                let contract_event = AnoncredsRegistryEvents::decode_log(&RawLog::from(log));
+                match contract_event {
+                    Ok(AnoncredsRegistryEvents::MutableResourceUpdateEventFilter(inner)) => {
+                        Some(inner)
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        // assertion for sake of demo, proving that the filter worked without ambiguity
+        assert!(filtered_resource_update_events.len() == 1);
+        let resource_update_event = filtered_resource_update_events.into_iter().next().unwrap();
+
+        let resource_bytes = resource_update_event.resource.content.0.to_vec();
+        let update_timestamp = resource_update_event.resource.metadata.block_timestamp;
+        (T::from_ledger_bytes(&resource_bytes), update_timestamp)
     }
 
     /// For the given [rev_reg_id], find the revocation status list entry that is
@@ -256,215 +371,19 @@ impl AnoncredsEthRegistry {
         rev_reg_id: &str,
         timestamp: u64,
     ) -> (anoncreds::types::RevocationStatusList, u64) {
-        #[cfg(feature = "thegraph")]
-        return self
-            .get_rev_reg_status_list_as_of_timestamp_via_subgraph(rev_reg_id, timestamp)
+        let (data, actual_timestamp) = self
+            .get_mutable_resource_as_of_timestamp::<StatusListUpdateLedgerData>(
+                rev_reg_id, timestamp,
+            )
             .await;
 
-        self.get_rev_reg_status_list_as_of_timestamp_via_pure_ethereum_api(rev_reg_id, timestamp)
-            .await
-    }
+        let anoncreds_data = data.into_anoncreds_data(timestamp, rev_reg_id);
 
-    /// This function works by doing the following:
-    /// 1. get ALL status list update metadatas from the ledger
-    /// 2. from those metadatas, find the timestamp & block number closest to [timestamp]
-    /// 3. query the ledger for a status list update event for the rev_reg_id and block number from 2.
-    /// 4. reconstruct the anoncreds data from the found event
-    async fn get_rev_reg_status_list_as_of_timestamp_via_pure_ethereum_api(
-        &self,
-        rev_reg_id: &str,
-        timestamp: u64,
-    ) -> (anoncreds::types::RevocationStatusList, u64) {
-        let client = get_read_only_ethers_client();
-        let contract = contract_with_client(client.clone());
-        let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
-
-        // get the metadata (timestamp + block number) for all revocation status list updates that have been made.
-        let all_updates_metadata: Vec<RevocationStatusListUpdateMetadata> = contract
-            .get_revocation_registry_status_list_updates_metadata(
-                rev_reg_resource_id.did_identity,
-                String::from(rev_reg_id),
-            )
-            .call()
-            .await
-            .unwrap();
-
-        if all_updates_metadata.is_empty() {
-            panic!("No rev entries for rev reg: {rev_reg_id}")
-        }
-
-        // TODO - here we might binary search rather than iter all
-        // Find the index of the timestamp that is closest to the provided [timestamp]:
-        // * scan the list until a timestamp is greater than the desired [timestamp],
-        //  then minus one from the index of that item.
-        // * OR, if no entries are greater than, just pick the last/latest entry.
-        let index_of_suitable_update_metadata = all_updates_metadata
-            .iter()
-            .position(|ts| ts.block_timestamp as u64 > timestamp)
-            .unwrap_or(all_updates_metadata.len())
-            - 1;
-        let suitable_update_metadata = &all_updates_metadata[index_of_suitable_update_metadata];
-        let suitable_update_timestamp: u64 = suitable_update_metadata.block_timestamp.into();
-        let suitable_update_block_number = suitable_update_metadata.block_number;
-
-        // Create an event filter for status list updates, filtering for update events
-        // for the specific rev_reg_id and for the exact block number. This should result
-        // in the exact status list update we want being found.
-        let precise_status_list_update_event_filter = contract
-            .status_list_update_event_filter()
-            .filter
-            .topic1(U256::from(keccak256(rev_reg_id)))
-            .from_block(suitable_update_block_number)
-            .to_block(suitable_update_block_number);
-
-        // Query this event filter on the contract
-        let filtered_status_list_update_events: Vec<_> = client
-            .get_logs(&precise_status_list_update_event_filter)
-            .await
-            .unwrap()
-            .into_iter()
-            .filter_map(|log| {
-                let contract_event = AnoncredsRegistryEvents::decode_log(&RawLog::from(log));
-                match contract_event {
-                    Ok(AnoncredsRegistryEvents::StatusListUpdateEventFilter(inner)) => Some(inner),
-                    _ => None,
-                }
-            })
-            .collect();
-
-        // assertion for sake of demo, proving that the filter worked without ambiguity
-        assert!(filtered_status_list_update_events.len() == 1);
-        let status_list_update_event = filtered_status_list_update_events
-            .into_iter()
-            .next()
-            .unwrap();
-
-        // reconstruct the anoncreds RevocationStatusList from the ledger event data
-        let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
-            rev_reg_id,
-            &rev_reg_resource_id.author_did(),
-            status_list_update_event
-                .status_list
-                .revocation_list_bit_vec
-                .0
-                .to_vec(),
-            status_list_update_event
-                .status_list
-                .current_accumulator
-                .0
-                .to_vec(),
-            status_list_update_event
-                .status_list
-                .metadata
-                .block_timestamp,
-        );
-
-        (rev_list, suitable_update_timestamp)
-    }
-
-    #[cfg(feature = "thegraph")]
-    async fn get_rev_reg_status_list_as_of_timestamp_via_subgraph(
-        &self,
-        rev_reg_id: &str,
-        timestamp: u64,
-    ) -> (anoncreds::types::RevocationStatusList, u64) {
-        let rev_reg_resource_id = DIDResourceId::from_id(rev_reg_id.to_owned());
-
-        let res = subgraph_query::get_status_list_event_most_recent_to(rev_reg_id, timestamp).await;
-
-        let timestamp: u32 = res.timestamp.parse().unwrap();
-
-        let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
-            rev_reg_id,
-            &rev_reg_resource_id.author_did(),
-            hex_to_bytes(&res.status_list_hex),
-            hex_to_bytes(&res.current_accum_hex),
-            timestamp,
-        );
-
-        (rev_list, timestamp.into())
+        (anoncreds_data, actual_timestamp)
     }
 }
 
-// anoncreds type -> Ledger data type
-fn construct_ledger_update_status_list_input_from_anoncreds_data(
-    anoncreds_data: &anoncreds::types::RevocationStatusList,
-) -> anoncreds_registry::UpdateRevocationStatusListInput {
-    // dismantle the inner parts that we want to upload to the registry
-    let revocation_status_list_json: Value = serde_json::to_value(anoncreds_data).unwrap();
-    let current_accumulator = revocation_status_list_json
-        .get("currentAccumulator")
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let current_accumulator_bytes = anoncreds_accumulator_str_to_bytes(&current_accumulator);
-
-    let revocation_list_val = revocation_status_list_json.get("revocationList").unwrap();
-    let bitvec = serde_revocation_list::deserialize(revocation_list_val).unwrap();
-    let bitvec_as_bytes = bitvec_to_bytes(bitvec);
-
-    anoncreds_registry::UpdateRevocationStatusListInput {
-        revocation_list_bit_vec: ethers::types::Bytes::from(bitvec_as_bytes),
-        current_accumulator: ethers::types::Bytes::from(current_accumulator_bytes),
-    }
-}
-
-// ledger event data type (plus other data) -> anoncreds type
-fn construct_anoncreds_status_list_from_ledger_event_data(
-    rev_reg_id: &str,
-    did: &str,
-    ledger_event_status_list_bit_vec: Vec<u8>,
-    ledger_event_current_accum_bytes: Vec<u8>,
-    ledger_event_timestamp: u32,
-) -> anoncreds::types::RevocationStatusList {
-    let rev_list = bytes_to_bitvec(ledger_event_status_list_bit_vec);
-    let current_accumulator_str =
-        anoncreds_accumulator_bytes_to_str(&ledger_event_current_accum_bytes);
-    let current_accumulator = serde_json::from_value(json!(&current_accumulator_str)).unwrap();
-
-    anoncreds::types::RevocationStatusList::new(
-        Some(rev_reg_id),
-        IssuerId::try_from(did).unwrap(),
-        rev_list,
-        Some(current_accumulator),
-        Some(ledger_event_timestamp.into()),
-    )
-    .unwrap()
-}
-
-fn anoncreds_accumulator_str_to_bytes(accumulator: &str) -> Vec<u8> {
-    PointG2::from_string(accumulator)
-        .unwrap()
-        .to_bytes()
-        .unwrap()
-}
-
-fn anoncreds_accumulator_bytes_to_str(accumulator: &[u8]) -> String {
-    PointG2::from_bytes(accumulator)
-        .unwrap()
-        .to_string()
-        .unwrap()
-}
-
-fn bitvec_to_bytes(bitvec: BitVec) -> Vec<u8> {
-    let mut bitvec_as_u8_array = vec![0; (bitvec.len() / 8) + 1];
-
-    for (idx, bit) in bitvec.into_iter().enumerate() {
-        let byte = idx / 8;
-        let shift = 7 - idx % 8;
-        bitvec_as_u8_array[byte] |= (bit as u8) << shift;
-    }
-
-    bitvec_as_u8_array
-}
-
-fn bytes_to_bitvec(bytes: Vec<u8>) -> BitVec {
-    let rev_list: BitVec<_> = BitVec::from_vec(bytes);
-    rev_list.into_iter().collect()
-}
-
-fn hex_to_bytes(hex_str: &str) -> Vec<u8> {
-    let hex_str = hex_str.trim_start_matches("0x");
-    hex::decode(hex_str).unwrap()
+fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    let hex_without_prefix = hex.trim_start_matches("0x");
+    hex::decode(hex_without_prefix).unwrap()
 }

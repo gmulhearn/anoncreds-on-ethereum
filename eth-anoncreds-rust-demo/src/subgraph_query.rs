@@ -1,39 +1,46 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-const MOST_RECENT_STATUS_LIST_UPDATE_QUERY: &str = r#"
-query MostRecentStatusListUpdate($revRegId: String, $lteTimestamp: Int) {
-    statusListUpdateEvents(
-      where: {blockTimestamp_lte: $lteTimestamp, revocationRegistryId: $revRegId}
+use crate::anoncreds_eth_registry::DIDResourceId;
+
+const MOST_RECENT_RESOURCE_UPDATE_OP_NAME: &str = "MostRecentResourceUpdate";
+const MOST_RECENT_RESOURCE_UPDATE_QUERY: &str = r#"
+query MostRecentResourceUpdate($didIdentity: String, $path: String, $lteTimestamp: Int) {
+    mutableResourceUpdateEvents(
+      where: {blockTimestamp_lte: $lteTimestamp, didIdentity: $didIdentity, path: $path }
       first: 1
       orderBy: blockTimestamp
       orderDirection: desc
     ) {
       id
+      blockNumber
       blockTimestamp
-      revocationRegistryId
-      statusList_currentAccumulator
-      statusList_metadata_blockNumber
-      statusList_metadata_blockTimestamp
-      statusList_previousMetadata_blockTimestamp
-      statusList_previousMetadata_blockNumber
-      statusList_revocationList
+      didIdentity
+      path
+      resource_content
+      resource_metadata_blockNumber
+      resource_metadata_blockTimestamp
+      resource_previousMetadata_blockNumber
+      resource_previousMetadata_blockTimestamp
     }
   }
   "#;
-const MOST_RECENT_STATUS_LIST_UPDATE_OP_NAME: &str = "MostRecentStatusListUpdate";
 const SUBGRAPH_API_URL: &str = "http://localhost:8000/subgraphs/name/anoncreds-registry-subgraph";
 
-pub async fn get_status_list_event_most_recent_to(
-    rev_reg_id: &str,
+pub async fn get_resource_update_event_most_recent_to(
+    resource_id: DIDResourceId,
     timestamp: u64,
-) -> MostRecentStatusListUpdateQueryResult {
+) -> MostRecentResourceUpdateQueryResult {
+    let did_identity = resource_id.did_identity;
+    let path = resource_id.resource_path;
+
     let request_body = json!({
-        "operationName": MOST_RECENT_STATUS_LIST_UPDATE_OP_NAME,
-        "query": MOST_RECENT_STATUS_LIST_UPDATE_QUERY,
+        "operationName": MOST_RECENT_RESOURCE_UPDATE_OP_NAME,
+        "query": MOST_RECENT_RESOURCE_UPDATE_QUERY,
         "variables": {
+            "didIdentity": did_identity,
+            "path": path,
             "lteTimestamp": timestamp,
-            "revRegId": rev_reg_id
         }
     });
 
@@ -45,19 +52,19 @@ pub async fn get_status_list_event_most_recent_to(
         .unwrap();
 
     let mut res = res.json::<Value>().await.unwrap();
-    let item = res["data"]["statusListUpdateEvents"][0].take();
+    let item = res["data"]["mutableResourceUpdateEvents"][0].take();
 
     serde_json::from_value(item).unwrap()
 }
 
 #[derive(Deserialize)]
-pub struct MostRecentStatusListUpdateQueryResult {
-    #[serde(rename = "revocationRegistryId")]
-    pub rev_reg_id: String,
-    #[serde(rename = "statusList_currentAccumulator")]
-    pub current_accum_hex: String,
-    #[serde(rename = "statusList_revocationList")]
-    pub status_list_hex: String,
-    #[serde(rename = "statusList_metadata_blockTimestamp")]
+pub struct MostRecentResourceUpdateQueryResult {
+    #[serde(rename = "path")]
+    pub path: String,
+    #[serde(rename = "didIdentity")]
+    pub did_identity: String,
+    #[serde(rename = "resource_content")]
+    pub content_hex: String,
+    #[serde(rename = "blockTimestamp")]
     pub timestamp: String,
 }

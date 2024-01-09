@@ -15,13 +15,13 @@ dataSources:
       language: wasm/assemblyscript
       entities:
         - NewResourceEvent
-        - StatusListUpdateEvent
+        - MutableResourceUpdateEvent
       abis:
         - name: AnoncredsRegistry
           file: ../anoncreds-smart-contracts-js/artifacts/contracts/AnoncredsRegistry.sol/AnoncredsRegistry.json
       eventHandlers:
         - event: NewResourceEvent(address,string)
           handler: handleNewResourceEvent
-        - event: StatusListUpdateEvent(indexed string,string,(bytes,bytes,(uint32,uint32),(uint32,uint32)))
-          handler: handleStatusListUpdateEvent
+        - event: MutableResourceUpdateEvent(indexed address,indexed string,string,(bytes,(uint40,uint64),(uint40,uint64)))
+          handler: handleMutableResourceUpdateEvent
       file: ./src/anoncreds-registry.ts

@@ -1,8 +1,8 @@
 import {
   NewResourceEvent as NewResourceEventEvent,
-  StatusListUpdateEvent as StatusListUpdateEventEvent
+  MutableResourceUpdateEvent as MutableResourceUpdateEventEvent
 } from "../generated/AnoncredsRegistry/AnoncredsRegistry"
-import { NewResourceEvent, StatusListUpdateEvent } from "../generated/schema"
+import { NewResourceEvent, MutableResourceUpdateEvent } from "../generated/schema"
 
 export function handleNewResourceEvent(event: NewResourceEventEvent): void {
   let entity = new NewResourceEvent(
@@ -18,25 +18,21 @@ export function handleNewResourceEvent(event: NewResourceEventEvent): void {
   entity.save()
 }
 
-export function handleStatusListUpdateEvent(
-  event: StatusListUpdateEventEvent
+export function handleMutableResourceUpdateEvent(
+  event: MutableResourceUpdateEventEvent
 ): void {
-  let entity = new StatusListUpdateEvent(
+  let entity = new MutableResourceUpdateEvent(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.indexedRevocationRegistryId = event.params.revocationRegistryId
-  entity.revocationRegistryId = event.params.revocationRegistryId
-  entity.statusList_revocationList = event.params.statusList.revocationListBitVec
-  entity.statusList_currentAccumulator =
-    event.params.statusList.currentAccumulator
-  entity.statusList_metadata_blockTimestamp =
-    event.params.statusList.metadata.blockTimestamp
-  entity.statusList_metadata_blockNumber =
-    event.params.statusList.metadata.blockNumber
-  entity.statusList_previousMetadata_blockTimestamp =
-    event.params.statusList.previousMetadata.blockTimestamp
-  entity.statusList_previousMetadata_blockNumber =
-    event.params.statusList.previousMetadata.blockNumber
+
+  entity.path = event.params.path
+  entity.didIdentity = event.params.didIdentity
+
+  entity.resource_content = event.params.resource.content
+  entity.resource_metadata_blockNumber = event.params.resource.metadata.blockNumber
+  entity.resource_metadata_blockTimestamp = event.params.resource.metadata.blockTimestamp
+  entity.resource_previousMetadata_blockNumber = event.params.resource.previousMetadata.blockNumber
+  entity.resource_previousMetadata_blockTimestamp = event.params.resource.previousMetadata.blockTimestamp
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp

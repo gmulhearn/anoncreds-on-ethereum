@@ -27,6 +27,7 @@ use serde::Serialize;
 use crate::{
     anoncreds_eth_registry::{AnoncredsEthRegistry, DIDResourceId, EtherSigner},
     eth_did_registry::DidEthRegistry,
+    ledger::status_list_update_ledger_data::StatusListUpdateLedgerData,
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -63,13 +64,13 @@ impl Holder {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        self.registry.get_json_resource(schema_id).await
+        self.registry.get_immutable_json_resource(schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        self.registry.get_json_resource(cred_def_id).await
+        self.registry.get_immutable_json_resource(cred_def_id).await
     }
 
     pub async fn accept_offer(&mut self, cred_offer: &CredentialOffer) -> CredentialRequest {
@@ -94,7 +95,7 @@ impl Holder {
         let fetched_cred_def = self.fetch_cred_def(&credential.cred_def_id.0).await;
         let fetched_rev_reg_def: RevocationRegistryDefinition = self
             .registry
-            .get_json_resource(&credential.rev_reg_id.as_ref().unwrap().0)
+            .get_immutable_json_resource(&credential.rev_reg_id.as_ref().unwrap().0)
             .await;
 
         anoncreds::prover::process_credential(
@@ -164,7 +165,7 @@ impl Holder {
         // construct rev_state
         let rev_reg_def: RevocationRegistryDefinition = self
             .registry
-            .get_json_resource(&holder_cred.rev_reg_id.as_ref().unwrap().0)
+            .get_immutable_json_resource(&holder_cred.rev_reg_id.as_ref().unwrap().0)
             .await;
         let requested_nrp_timestamp = presentation_request
             .value()
@@ -264,7 +265,7 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting schema...");
         let schema_resource_id = anoncreds_registry
-            .submit_json_resource(signer.clone(), &issuer_did, &schema, "schema")
+            .submit_immutable_json_resource(signer.clone(), &issuer_did, &schema, "schema")
             .await
             .unwrap();
         let schema_id = schema_resource_id.to_id();
@@ -285,7 +286,7 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting cred def...");
         let cred_def_resource_id = anoncreds_registry
-            .submit_json_resource(signer.clone(), &issuer_did, &cred_def, "cred_def")
+            .submit_immutable_json_resource(signer.clone(), &issuer_did, &cred_def, "cred_def")
             .await
             .unwrap();
 
@@ -307,7 +308,12 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting rev reg def...");
         let rev_reg_def_resource_id = anoncreds_registry
-            .submit_json_resource(signer.clone(), &issuer_did, &rev_reg_def, "rev_reg_def")
+            .submit_immutable_json_resource(
+                signer.clone(),
+                &issuer_did,
+                &rev_reg_def,
+                "rev_reg_def",
+            )
             .await
             .unwrap();
 
@@ -322,13 +328,15 @@ impl Issuer {
         .unwrap();
         println!("Issuer: submitting rev list initial entry...");
         let ledger_timestamp = anoncreds_registry
-            .submit_rev_reg_status_list_update(
+            .submit_mutable_resource(
                 signer.clone(),
                 &issuer_did,
-                &rev_reg_def_resource_id.to_id(),
-                &rev_list,
+                StatusListUpdateLedgerData::from_anoncreds_data(&rev_list),
+                &rev_reg_def_resource_id.resource_path,
             )
-            .await;
+            .await
+            .unwrap();
+
         println!("Issuer: submitted rev list initial entry at ledger time: {ledger_timestamp:?}");
         let rev_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
             ledger_timestamp,
@@ -381,7 +389,7 @@ impl Issuer {
     pub async fn write_resource<T: Serialize>(&self, resource: &T) -> Result<(), Box<dyn Error>> {
         let signer = self.signer.clone();
         self.anoncreds_registry
-            .submit_json_resource(signer, &self.issuer_did, resource, "misc")
+            .submit_immutable_json_resource(signer, &self.issuer_did, resource, "misc")
             .await?;
         Ok(())
     }
@@ -457,13 +465,14 @@ impl Issuer {
 
         let ledger_timestamp = self
             .anoncreds_registry
-            .submit_rev_reg_status_list_update(
+            .submit_mutable_resource(
                 self.signer.clone(),
                 &self.issuer_did,
-                &self.demo_data.rev_reg_def_resource_id.to_id(),
-                &new_list,
+                StatusListUpdateLedgerData::from_anoncreds_data(&new_list),
+                &self.demo_data.rev_reg_def_resource_id.resource_path,
             )
-            .await;
+            .await
+            .unwrap();
 
         println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
 
@@ -499,13 +508,13 @@ impl Verifier {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        self.registry.get_json_resource(schema_id).await
+        self.registry.get_immutable_json_resource(schema_id).await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        self.registry.get_json_resource(cred_def_id).await
+        self.registry.get_immutable_json_resource(cred_def_id).await
     }
 
     pub fn request_presentation(&mut self, from_cred_def: &str) -> PresentationRequest {
@@ -615,7 +624,7 @@ impl Verifier {
             &RevocationRegistryDefinitionId,
             &RevocationRegistryDefinition,
         > = HashMap::new();
-        let rev_reg_def_for_cred = self.registry.get_json_resource(&rev_reg_id).await;
+        let rev_reg_def_for_cred = self.registry.get_immutable_json_resource(&rev_reg_id).await;
         // re-typing from RevocationRegistryId to RevocationRegistryDefinitionId?! seems to be the same thing?
         let rev_reg_def_id = rev_reg_id.try_into().unwrap();
         rev_reg_defs.insert(&rev_reg_def_id, &rev_reg_def_for_cred);

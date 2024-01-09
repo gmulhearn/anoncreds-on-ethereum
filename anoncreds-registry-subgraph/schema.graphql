@@ -7,16 +7,15 @@ type NewResourceEvent @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type StatusListUpdateEvent @entity(immutable: true) {
+type MutableResourceUpdateEvent @entity(immutable: true) {
   id: Bytes!
-  indexedRevocationRegistryId: String! # string
-  revocationRegistryId: String! # string
-  statusList_revocationList: Bytes!
-  statusList_currentAccumulator: Bytes!
-  statusList_metadata_blockTimestamp: BigInt! # uint32
-  statusList_metadata_blockNumber: BigInt! # uint32
-  statusList_previousMetadata_blockTimestamp: BigInt! # uint32
-  statusList_previousMetadata_blockNumber: BigInt! # uint32
+  didIdentity: Bytes! # address
+  path: String! # string
+  resource_content: Bytes!
+  resource_metadata_blockTimestamp: BigInt! # uint40
+  resource_metadata_blockNumber: BigInt! # uint64
+  resource_previousMetadata_blockTimestamp: BigInt! # uint40
+  resource_previousMetadata_blockNumber: BigInt! # uint64
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
