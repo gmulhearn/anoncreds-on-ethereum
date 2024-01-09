@@ -26,7 +26,7 @@ export function handleStatusListUpdateEvent(
   )
   entity.indexedRevocationRegistryId = event.params.revocationRegistryId
   entity.revocationRegistryId = event.params.revocationRegistryId
-  entity.statusList_revocationList = event.params.statusList.revocationList
+  entity.statusList_revocationList = event.params.statusList.revocationListBitVec
   entity.statusList_currentAccumulator =
     event.params.statusList.currentAccumulator
   entity.statusList_metadata_blockTimestamp =
