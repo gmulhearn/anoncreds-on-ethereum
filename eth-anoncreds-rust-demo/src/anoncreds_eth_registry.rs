@@ -2,9 +2,10 @@ use std::env;
 use std::error::Error;
 use std::sync::Arc;
 
+use anoncreds::data_types::issuer_id::IssuerId;
 use anoncreds::data_types::rev_status_list::serde_revocation_list;
 use anyhow::anyhow;
-use bitvec::{prelude::Lsb0, vec::BitVec};
+use bitvec::vec::BitVec;
 use dotenv::dotenv;
 use ethers::contract::EthLogDecode;
 use ethers::providers::Middleware;
@@ -21,6 +22,7 @@ use ethers::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
+use ursa::pair::PointG2;
 use uuid::Uuid;
 
 #[cfg(feature = "thegraph")]
@@ -332,14 +334,25 @@ impl AnoncredsEthRegistry {
 
         // assertion for sake of demo, proving that the filter worked without ambiguity
         assert!(filtered_status_list_update_events.len() == 1);
-        let status_list_update_event = &filtered_status_list_update_events[0];
+        let status_list_update_event = filtered_status_list_update_events
+            .into_iter()
+            .next()
+            .unwrap();
 
         // reconstruct the anoncreds RevocationStatusList from the ledger event data
         let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
             rev_reg_id,
             &rev_reg_resource_id.author_did(),
-            &status_list_update_event.status_list.revocation_list,
-            &status_list_update_event.status_list.current_accumulator,
+            status_list_update_event
+                .status_list
+                .revocation_list_bit_vec
+                .0
+                .to_vec(),
+            status_list_update_event
+                .status_list
+                .current_accumulator
+                .0
+                .to_vec(),
             status_list_update_event
                 .status_list
                 .metadata
@@ -364,8 +377,8 @@ impl AnoncredsEthRegistry {
         let rev_list = construct_anoncreds_status_list_from_ledger_event_data(
             rev_reg_id,
             &rev_reg_resource_id.author_did(),
-            &res.status_list,
-            &res.current_accum,
+            hex_to_bytes(&res.status_list_hex),
+            hex_to_bytes(&res.current_accum_hex),
             timestamp,
         );
 
@@ -385,13 +398,15 @@ fn construct_ledger_update_status_list_input_from_anoncreds_data(
         .as_str()
         .unwrap()
         .to_owned();
+    let current_accumulator_bytes = anoncreds_accumulator_str_to_bytes(&current_accumulator);
+
     let revocation_list_val = revocation_status_list_json.get("revocationList").unwrap();
     let bitvec = serde_revocation_list::deserialize(revocation_list_val).unwrap();
-    let serialized_bitvec_revocation_list = serde_json::to_string(&bitvec).unwrap();
+    let bitvec_as_bytes = bitvec_to_bytes(bitvec);
 
     anoncreds_registry::UpdateRevocationStatusListInput {
-        revocation_list: serialized_bitvec_revocation_list,
-        current_accumulator,
+        revocation_list_bit_vec: ethers::types::Bytes::from(bitvec_as_bytes),
+        current_accumulator: ethers::types::Bytes::from(current_accumulator_bytes),
     }
 }
 
@@ -399,23 +414,57 @@ fn construct_ledger_update_status_list_input_from_anoncreds_data(
 fn construct_anoncreds_status_list_from_ledger_event_data(
     rev_reg_id: &str,
     did: &str,
-    ledger_event_status_list: &str,
-    ledger_event_current_accum: &str,
+    ledger_event_status_list_bit_vec: Vec<u8>,
+    ledger_event_current_accum_bytes: Vec<u8>,
     ledger_event_timestamp: u32,
 ) -> anoncreds::types::RevocationStatusList {
-    // reconstruct the [anoncreds::types::RevocationStatusList] from the registry data.
-    let mut rev_list: BitVec = serde_json::from_str(&ledger_event_status_list).unwrap();
-    let mut recapacitied_rev_list = BitVec::<usize, Lsb0>::with_capacity(64);
-    recapacitied_rev_list.append(&mut rev_list);
-
-    let current_accumulator = serde_json::from_value(json!(&ledger_event_current_accum)).unwrap();
+    let rev_list = bytes_to_bitvec(ledger_event_status_list_bit_vec);
+    let current_accumulator_str =
+        anoncreds_accumulator_bytes_to_str(&ledger_event_current_accum_bytes);
+    let current_accumulator = serde_json::from_value(json!(&current_accumulator_str)).unwrap();
 
     anoncreds::types::RevocationStatusList::new(
         Some(rev_reg_id),
-        did.try_into().unwrap(),
-        recapacitied_rev_list,
+        IssuerId::try_from(did).unwrap(),
+        rev_list,
         Some(current_accumulator),
         Some(ledger_event_timestamp.into()),
     )
     .unwrap()
+}
+
+fn anoncreds_accumulator_str_to_bytes(accumulator: &str) -> Vec<u8> {
+    PointG2::from_string(accumulator)
+        .unwrap()
+        .to_bytes()
+        .unwrap()
+}
+
+fn anoncreds_accumulator_bytes_to_str(accumulator: &[u8]) -> String {
+    PointG2::from_bytes(accumulator)
+        .unwrap()
+        .to_string()
+        .unwrap()
+}
+
+fn bitvec_to_bytes(bitvec: BitVec) -> Vec<u8> {
+    let mut bitvec_as_u8_array = vec![0; (bitvec.len() / 8) + 1];
+
+    for (idx, bit) in bitvec.into_iter().enumerate() {
+        let byte = idx / 8;
+        let shift = 7 - idx % 8;
+        bitvec_as_u8_array[byte] |= (bit as u8) << shift;
+    }
+
+    bitvec_as_u8_array
+}
+
+fn bytes_to_bitvec(bytes: Vec<u8>) -> BitVec {
+    let rev_list: BitVec<_> = BitVec::from_vec(bytes);
+    rev_list.into_iter().collect()
+}
+
+fn hex_to_bytes(hex_str: &str) -> Vec<u8> {
+    let hex_str = hex_str.trim_start_matches("0x");
+    hex::decode(hex_str).unwrap()
 }

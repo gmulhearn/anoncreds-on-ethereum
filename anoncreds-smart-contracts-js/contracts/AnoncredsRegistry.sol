@@ -26,15 +26,15 @@ contract AnoncredsRegistry {
     mapping(address => mapping(string => RevocationStatusListUpdateMetadata[])) private statusListUpdateMetadataByRevRegIdByDidIdentity;
     
     struct UpdateRevocationStatusListInput {
-        string revocationList; // serialized bitvec (RON notation i believe) - TODO optimise
-        string currentAccumulator;
+        bytes revocationListBitVec; // BitVec as u8 array (bytes)
+        bytes currentAccumulator; // PointG2 bytes
     }
 
     /// simplified revocation status list. Containing only the data we care about, 
     /// the rest can be constructed by the client with other metadata.
     struct RevocationStatusList {
-        string revocationList; // serialized bitvec (RON notation i believe) - TODO optimise
-        string currentAccumulator;
+        bytes revocationListBitVec; // BitVec as u8 array (bytes)
+        bytes currentAccumulator; // PointG2 bytes
         RevocationStatusListUpdateMetadata metadata;
         RevocationStatusListUpdateMetadata previousMetadata;
     }
@@ -96,7 +96,7 @@ contract AnoncredsRegistry {
         );
 
         RevocationStatusList memory statusList = RevocationStatusList(
-            statusListInput.revocationList,
+            statusListInput.revocationListBitVec,
             statusListInput.currentAccumulator,
             metadata,
             previousMetadata

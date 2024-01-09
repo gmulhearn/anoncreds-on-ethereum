@@ -11,8 +11,8 @@ type StatusListUpdateEvent @entity(immutable: true) {
   id: Bytes!
   indexedRevocationRegistryId: String! # string
   revocationRegistryId: String! # string
-  statusList_revocationList: String! # string
-  statusList_currentAccumulator: String! # string
+  statusList_revocationList: Bytes!
+  statusList_currentAccumulator: Bytes!
   statusList_metadata_blockTimestamp: BigInt! # uint32
   statusList_metadata_blockNumber: BigInt! # uint32
   statusList_previousMetadata_blockTimestamp: BigInt! # uint32

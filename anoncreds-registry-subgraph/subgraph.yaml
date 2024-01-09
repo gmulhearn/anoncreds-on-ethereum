@@ -22,6 +22,6 @@ dataSources:
       eventHandlers:
         - event: NewResourceEvent(address,string)
           handler: handleNewResourceEvent
-        - event: StatusListUpdateEvent(indexed string,string,(string,string,(uint32,uint32),(uint32,uint32)))
+        - event: StatusListUpdateEvent(indexed string,string,(bytes,bytes,(uint32,uint32),(uint32,uint32)))
           handler: handleStatusListUpdateEvent
       file: ./src/anoncreds-registry.ts
