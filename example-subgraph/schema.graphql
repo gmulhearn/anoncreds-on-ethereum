@@ -1,4 +1,4 @@
-type NewResourceEvent @entity(immutable: true) {
+type ImmutableResourceCreatedEvent @entity(immutable: true) {
   id: Bytes!
   didIdentity: Bytes! # address
   name: String! # string
@@ -7,7 +7,7 @@ type NewResourceEvent @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type MutableResourceUpdateEvent @entity(immutable: true) {
+type MutableResourceUpdatedEvent @entity(immutable: true) {
   id: Bytes!
   didIdentity: Bytes! # address
   name: String! # string

@@ -1,11 +1,11 @@
 import {
-  NewResourceEvent as NewResourceEventEvent,
-  MutableResourceUpdateEvent as MutableResourceUpdateEventEvent
+  ImmutableResourceCreatedEvent as ImmutableResourceCreatedEventEvent,
+  MutableResourceUpdatedEvent as MutableResourceUpdatedEventEvent
 } from "../generated/EthrDIDLinkedResourcesRegistry/EthrDIDLinkedResourcesRegistry"
-import { NewResourceEvent, MutableResourceUpdateEvent } from "../generated/schema"
+import { ImmutableResourceCreatedEvent, MutableResourceUpdatedEvent } from "../generated/schema"
 
-export function handleNewResourceEvent(event: NewResourceEventEvent): void {
-  let entity = new NewResourceEvent(
+export function handleImmutableResourceCreatedEvent(event: ImmutableResourceCreatedEventEvent): void {
+  let entity = new ImmutableResourceCreatedEvent(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
   entity.didIdentity = event.params.didIdentity
@@ -18,10 +18,10 @@ export function handleNewResourceEvent(event: NewResourceEventEvent): void {
   entity.save()
 }
 
-export function handleMutableResourceUpdateEvent(
-  event: MutableResourceUpdateEventEvent
+export function handleMutableResourceUpdatedEvent(
+  event: MutableResourceUpdatedEventEvent
 ): void {
-  let entity = new MutableResourceUpdateEvent(
+  let entity = new MutableResourceUpdatedEvent(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
 

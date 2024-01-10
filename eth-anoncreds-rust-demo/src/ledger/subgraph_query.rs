@@ -6,7 +6,7 @@ use super::did_linked_resource_id::DIDLinkedResourceId;
 const MOST_RECENT_RESOURCE_UPDATE_OP_NAME: &str = "MostRecentResourceUpdate";
 const MOST_RECENT_RESOURCE_UPDATE_QUERY: &str = r#"
 query MostRecentResourceUpdate($didIdentity: String, $name: String, $lteTimestamp: Int) {
-    mutableResourceUpdateEvents(
+    mutableResourceUpdatedEvents(
       where: {blockTimestamp_lte: $lteTimestamp, didIdentity: $didIdentity, name: $name }
       first: 1
       orderBy: blockTimestamp
@@ -25,7 +25,7 @@ query MostRecentResourceUpdate($didIdentity: String, $name: String, $lteTimestam
     }
   }
   "#;
-const SUBGRAPH_API_URL: &str = "http://localhost:8000/subgraphs/name/anoncreds-registry-subgraph";
+const SUBGRAPH_API_URL: &str = "http://localhost:8000/subgraphs/name/example-subgraph";
 
 pub async fn get_resource_update_event_most_recent_to(
     resource_id: DIDLinkedResourceId,
@@ -52,7 +52,7 @@ pub async fn get_resource_update_event_most_recent_to(
         .unwrap();
 
     let mut res = res.json::<Value>().await.unwrap();
-    let item = res["data"]["mutableResourceUpdateEvents"][0].take();
+    let item = res["data"]["mutableResourceUpdatedEvents"][0].take();
 
     serde_json::from_value(item).unwrap()
 }

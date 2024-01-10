@@ -33,8 +33,8 @@ contract EthrDIDLinkedResourcesRegistry {
         require (actor == didRegistry.identityOwner(identity), "bad_actor");
         _;
     }
-    event NewResourceEvent(address didIdentity, string name);
-    event MutableResourceUpdateEvent(address indexed didIdentity, string indexed indexedName, string name, MutableResource resource);
+    event ImmutableResourceCreatedEvent(address didIdentity, string name);
+    event MutableResourceUpdatedEvent(address indexed didIdentity, string indexed indexedName, string name, MutableResource resource);
 
     constructor(address didRegistryAddress) {
         didRegistry = EthereumDIDRegistry(didRegistryAddress);
@@ -51,7 +51,7 @@ contract EthrDIDLinkedResourcesRegistry {
     function createImmutableResource(address didIdentity, string memory name, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
         require(!doesImmutableResourceExist(didIdentity, name), "Resource already created with this Name and DID");
         immutableResourceByNameByDidIdentity[didIdentity][name] = content;
-        emit NewResourceEvent(didIdentity, name);
+        emit ImmutableResourceCreatedEvent(didIdentity, name);
     }
 
     /// Get the [content] of an immutable resource in this registry, identified by it's [name] and [didIdentity].
@@ -60,7 +60,6 @@ contract EthrDIDLinkedResourcesRegistry {
     }
 
     /// Update the mutable resource at the given [name] and [didIdentity] with the given [content].
-    /// 
     function updateMutableResource(address didIdentity, string memory name, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
         uint32 blockTimestamp = uint32(block.timestamp);
         uint32 blockNumber = uint32(block.number);
@@ -87,7 +86,7 @@ contract EthrDIDLinkedResourcesRegistry {
 
         // set the new resource
         mutableResourceByNameByDidIdentity[didIdentity][name] = resource;
-        emit MutableResourceUpdateEvent(didIdentity, name, name, resource);
+        emit MutableResourceUpdatedEvent(didIdentity, name, name, resource);
     }
 
     function getCurrentMutableResource(address didIdentity, string memory name) public view returns (MutableResource memory) {

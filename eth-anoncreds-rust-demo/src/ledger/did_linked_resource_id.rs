@@ -37,9 +37,9 @@ impl DIDLinkedResourceId {
         };
 
         let (resource_type, resource_identifier) =
-            if let Some(rest) = resource_path.strip_prefix("resource/immutable/") {
+            if let Some(rest) = resource_path.strip_prefix("res/immut/") {
                 (DIDLinkedResourceType::Immutable, rest.to_owned())
-            } else if let Some(rest) = resource_path.strip_prefix("resource/mutable/") {
+            } else if let Some(rest) = resource_path.strip_prefix("res/mut/") {
                 (DIDLinkedResourceType::Mutable, rest.to_owned())
             } else {
                 panic!("Could not process as DID Resource: {id}")
@@ -62,12 +62,12 @@ impl DIDLinkedResourceId {
         let did = self.author_did();
 
         let resource_type = match self.resource_type {
-            DIDLinkedResourceType::Immutable => "immutable",
-            DIDLinkedResourceType::Mutable => "mutable",
+            DIDLinkedResourceType::Immutable => "immut",
+            DIDLinkedResourceType::Mutable => "mut",
         };
 
         format!(
-            "{}/resource/{}/{}",
+            "{}/res/{}/{}",
             did, resource_type, self.resource_name
         )
     }

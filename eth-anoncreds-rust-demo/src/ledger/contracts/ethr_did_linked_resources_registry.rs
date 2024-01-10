@@ -150,7 +150,7 @@ impl LinkedResourcesRegistry {
                 let contract_event =
                     EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdateEventFilter(
+                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
                         inner,
                     )) => Some(inner),
                     _ => None,
@@ -257,7 +257,7 @@ impl LinkedResourcesRegistry {
         // for the specific resource name + did identity and for the exact block number. This should result
         // in the exact resource update we want being found.
         let precise_resource_update_event_filter = contract
-            .mutable_resource_update_event_filter()
+            .mutable_resource_updated_event_filter()
             .filter
             .topic1(did_resource_parts.did_identity)
             .topic2(U256::from(keccak256(resource_name)))
@@ -274,7 +274,7 @@ impl LinkedResourcesRegistry {
                 let contract_event =
                     EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdateEventFilter(
+                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
                         inner,
                     )) => Some(inner),
                     _ => None,

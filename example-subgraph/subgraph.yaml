@@ -14,14 +14,14 @@ dataSources:
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - NewResourceEvent
-        - MutableResourceUpdateEvent
+        - ImmutableResourceCreatedEvent
+        - MutableResourceUpdatedEvent
       abis:
         - name: EthrDIDLinkedResourcesRegistry
           file: ../smart-contracts/artifacts/contracts/EthrDIDLinkedResourcesRegistry.sol/EthrDIDLinkedResourcesRegistry.json
       eventHandlers:
-        - event: NewResourceEvent(address,string)
-          handler: handleNewResourceEvent
-        - event: MutableResourceUpdateEvent(indexed address,indexed string,string,(bytes,(uint40,uint64),(uint40,uint64)))
-          handler: handleMutableResourceUpdateEvent
+        - event: ImmutableResourceCreatedEvent(address,string)
+          handler: handleImmutableResourceCreatedEvent
+        - event: MutableResourceUpdatedEvent(indexed address,indexed string,string,(bytes,(uint40,uint64),(uint40,uint64)))
+          handler: handleMutableResourceUpdatedEvent
       file: ./src/ethr-did-linked-resources-registry.ts
