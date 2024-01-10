@@ -1,9 +1,5 @@
-pub mod anoncreds_eth_registry;
-pub mod eth_did_registry;
 pub mod ledger;
 pub mod roles;
-#[cfg(feature = "thegraph")]
-pub mod subgraph_query;
 pub mod utils;
 
 use serde_json::json;
@@ -14,7 +10,10 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
-    anoncreds_eth_registry::{did_identity_as_full_did, get_writer_ethers_client},
+    ledger::{
+        ledger_data::json_ledger_data::JsonLedgerData,
+        registries::{anoncreds_eth_registry::did_identity_as_full_did, get_writer_ethers_client},
+    },
     roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
     utils::get_epoch_secs,
 };
@@ -97,7 +96,9 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
         issuer.signer.address()
     );
 
-    let res = issuer.write_resource(&resource).await;
+    let res = issuer
+        .write_resource(JsonLedgerData(resource.clone()))
+        .await;
     println!("success: {}", res.is_ok());
 
     // change controller and write with new controller
@@ -116,7 +117,9 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
         issuer.signer.address()
     );
 
-    let res = issuer.write_resource(&resource).await;
+    let res = issuer
+        .write_resource(JsonLedgerData(resource.clone()))
+        .await;
     println!("success: {}", res.is_ok());
 
     // try writing with the incorrect controller (new random controller)
@@ -127,7 +130,9 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     );
     issuer.change_signer(wrong_controller);
 
-    let res = issuer.write_resource(&resource).await;
+    let res = issuer
+        .write_resource(JsonLedgerData(resource.clone()))
+        .await;
     println!("success: {}", res.is_ok());
 
     // try writing with incorrect controller (original controller)
@@ -136,7 +141,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
         original_controller.address()
     );
     issuer.change_signer(original_controller.clone());
-    let res = issuer.write_resource(&resource).await;
+    let res = issuer.write_resource(JsonLedgerData(resource)).await;
     println!("success: {}", res.is_ok());
 
     // change back to original for sake of the new

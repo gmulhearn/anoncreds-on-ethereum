@@ -22,12 +22,15 @@ use anoncreds::{
         SignatureType,
     },
 };
-use serde::Serialize;
 
 use crate::{
-    anoncreds_eth_registry::{AnoncredsEthRegistry, DIDResourceId, EtherSigner},
-    eth_did_registry::DidEthRegistry,
-    ledger::status_list_update_ledger_data::StatusListUpdateLedgerData,
+    ledger::ledger_data::status_list_update_ledger_data::StatusListUpdateLedgerData,
+    ledger::registries::anoncreds_eth_registry::{AnoncredsEthRegistry, DIDResourceId},
+    ledger::{
+        ledger_data::LedgerData,
+        registries::{eth_did_registry::DidEthRegistry, EtherSigner},
+    },
+    utils::serde_clone,
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -175,10 +178,15 @@ impl Holder {
             .to
             .unwrap();
         let rev_reg_id = &holder_cred.rev_reg_id.as_ref().unwrap().0;
-        let (rev_status_list, update_timestamp) = self
+        let (status_list_update_ledger_data, update_timestamp) = self
             .registry
-            .get_rev_reg_status_list_as_of_timestamp(rev_reg_id, requested_nrp_timestamp)
+            .get_mutable_resource_as_of_timestamp::<StatusListUpdateLedgerData>(
+                &rev_reg_id,
+                requested_nrp_timestamp,
+            )
             .await;
+        let rev_status_list =
+            status_list_update_ledger_data.into_anoncreds_data(update_timestamp, &rev_reg_id);
 
         let rev_reg_idx = holder_cred.signature.extract_index().unwrap();
         let rev_state = create_or_update_revocation_state(
@@ -265,7 +273,7 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting schema...");
         let schema_resource_id = anoncreds_registry
-            .submit_immutable_json_resource(signer.clone(), &issuer_did, &schema, "schema")
+            .submit_immutable_json_resource(signer.clone(), &issuer_did, schema.clone(), "schema")
             .await
             .unwrap();
         let schema_id = schema_resource_id.to_id();
@@ -286,7 +294,12 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting cred def...");
         let cred_def_resource_id = anoncreds_registry
-            .submit_immutable_json_resource(signer.clone(), &issuer_did, &cred_def, "cred_def")
+            .submit_immutable_json_resource(
+                signer.clone(),
+                &issuer_did,
+                serde_clone(&cred_def),
+                "cred_def",
+            )
             .await
             .unwrap();
 
@@ -311,7 +324,7 @@ impl Issuer {
             .submit_immutable_json_resource(
                 signer.clone(),
                 &issuer_did,
-                &rev_reg_def,
+                rev_reg_def.clone(),
                 "rev_reg_def",
             )
             .await
@@ -386,7 +399,7 @@ impl Issuer {
             .await;
     }
 
-    pub async fn write_resource<T: Serialize>(&self, resource: &T) -> Result<(), Box<dyn Error>> {
+    pub async fn write_resource<T: LedgerData>(&self, resource: T) -> Result<(), Box<dyn Error>> {
         let signer = self.signer.clone();
         self.anoncreds_registry
             .submit_immutable_json_resource(signer, &self.issuer_did, resource, "misc")
@@ -615,11 +628,15 @@ impl Verifier {
         cred_defs.insert(&cred_def_id, &cred_def_for_cred);
 
         // construct rev info
-        let rev_status_list = self
+        let (status_list_update_ledger_data, update_timestamp) = self
             .registry
-            .get_rev_reg_status_list_as_of_timestamp(&rev_reg_id, presented_timestamp)
-            .await
-            .0;
+            .get_mutable_resource_as_of_timestamp::<StatusListUpdateLedgerData>(
+                &rev_reg_id,
+                presented_timestamp,
+            )
+            .await;
+        let rev_status_list =
+            status_list_update_ledger_data.into_anoncreds_data(update_timestamp, &rev_reg_id);
         let mut rev_reg_defs: HashMap<
             &RevocationRegistryDefinitionId,
             &RevocationRegistryDefinition,

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::anoncreds_eth_registry::DIDResourceId;
+use crate::ledger::registries::anoncreds_eth_registry::DIDResourceId;
 
 const MOST_RECENT_RESOURCE_UPDATE_OP_NAME: &str = "MostRecentResourceUpdate";
 const MOST_RECENT_RESOURCE_UPDATE_QUERY: &str = r#"

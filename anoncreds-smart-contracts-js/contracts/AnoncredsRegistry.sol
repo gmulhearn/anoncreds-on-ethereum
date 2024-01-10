@@ -11,7 +11,7 @@ contract AnoncredsRegistry {
     EthereumDIDRegistry public didRegistry;
 
     /// storage of string blobs, which are immutable once uploaded, and identified by its path + DID Identity
-    mapping(address => mapping(string => string)) private immutableResourceByPathByDidIdentity;
+    mapping(address => mapping(string => bytes)) private immutableResourceByPathByDidIdentity;
 
     mapping(address => mapping(string => MutableResource)) private mutableResourceByPathByDidIdentity;
 
@@ -41,21 +41,21 @@ contract AnoncredsRegistry {
     }
 
     function doesImmutableResourceExist(address didIdentity, string memory path) private view returns (bool) {
-        string memory resource = immutableResourceByPathByDidIdentity[didIdentity][path];
-        return bytes(resource).length != 0;
+        bytes memory resource = immutableResourceByPathByDidIdentity[didIdentity][path];
+        return resource.length != 0;
     }
 
     /// Store [content] as an immutable resource in this registry. Where [content] is uniquely identified
     /// by the [path] and the DID identity.
     /// Note that since this is immutable data, repeated [path]s can only be used once per given DID Identity.
-    function createImmutableResource(address didIdentity, string memory path, string memory content) public onlyDidIdentityOwner(didIdentity) {
+    function createImmutableResource(address didIdentity, string memory path, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
         require(!doesImmutableResourceExist(didIdentity, path), "Resource already created with this Path and DID");
         immutableResourceByPathByDidIdentity[didIdentity][path] = content;
         emit NewResourceEvent(didIdentity, path);
     }
 
     /// Get the [content] of an immutable resource in this registry, identified by it's [path] and [didIdentity].
-    function getImmutableResource(address didIdentity, string memory path) public view returns (string memory) {
+    function getImmutableResource(address didIdentity, string memory path) public view returns (bytes memory) {
         return immutableResourceByPathByDidIdentity[didIdentity][path];
     }
 

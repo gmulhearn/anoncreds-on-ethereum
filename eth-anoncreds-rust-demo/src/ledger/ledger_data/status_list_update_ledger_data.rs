@@ -3,9 +3,9 @@ use bitvec::vec::BitVec;
 use serde_json::{json, Value};
 use ursa::pair::PointG2;
 
-use crate::anoncreds_eth_registry::DIDResourceId;
+use crate::ledger::registries::anoncreds_eth_registry::DIDResourceId;
 
-use super::ledger_data::LedgerData;
+use super::LedgerData;
 
 #[derive(Debug, Clone)]
 pub struct StatusListUpdateLedgerData {

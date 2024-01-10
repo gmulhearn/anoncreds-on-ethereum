@@ -2,16 +2,13 @@ use std::sync::Arc;
 
 use ethers::{abi::Address, providers::Middleware, types::H160};
 
-use crate::anoncreds_eth_registry::full_did_into_did_identity;
+use crate::ledger::registries::anoncreds_eth_registry::full_did_into_did_identity;
 
 // Include generated contract types from build script
 include!(concat!(
     env!("OUT_DIR"),
     "/ethereum_did_registry_contract.rs"
 ));
-
-// Ethereum RPC of the network to use (defaults to the hardhat local network)
-pub const REGISTRY_RPC: &str = "http://localhost:8545";
 
 // Address of the `EthereumDIDRegistry` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
