@@ -9,7 +9,7 @@ export function handleNewResourceEvent(event: NewResourceEventEvent): void {
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
   entity.didIdentity = event.params.didIdentity
-  entity.path = event.params.path
+  entity.name = event.params.name
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -25,7 +25,7 @@ export function handleMutableResourceUpdateEvent(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
 
-  entity.path = event.params.path
+  entity.name = event.params.name
   entity.didIdentity = event.params.didIdentity
 
   entity.resource_content = event.params.resource.content

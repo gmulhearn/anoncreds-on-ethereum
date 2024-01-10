@@ -64,13 +64,13 @@ impl StatusListUpdateLedgerData {
         timestamp: u64,
         rev_reg_id: &str,
     ) -> anoncreds::types::RevocationStatusList {
-        let did_resource = DIDLinkedResourceId::from_id(rev_reg_id.to_owned());
+        let did_resource = DIDLinkedResourceId::from_full_id(rev_reg_id.to_owned());
 
         let current_accumulator_str = self.accumulator.to_string().unwrap();
         let current_accumulator = serde_json::from_value(json!(&current_accumulator_str)).unwrap();
 
         anoncreds::types::RevocationStatusList::new(
-            Some(&did_resource.to_id()),
+            Some(&did_resource.to_full_id()),
             IssuerId::try_from(did_resource.author_did()).unwrap(),
             self.rev_list,
             Some(current_accumulator),

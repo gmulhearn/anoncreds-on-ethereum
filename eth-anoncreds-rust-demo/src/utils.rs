@@ -10,6 +10,10 @@ pub fn get_epoch_secs() -> u64 {
         .as_secs()
 }
 
+pub fn random_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
 /// a hacky way to clone when not possible
 pub fn serde_clone<T: Serialize + DeserializeOwned>(data: &T) -> T {
     serde_json::from_str(&serde_json::to_string(data).unwrap()).unwrap()

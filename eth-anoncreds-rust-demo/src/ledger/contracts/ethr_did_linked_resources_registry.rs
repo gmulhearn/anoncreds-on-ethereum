@@ -8,9 +8,10 @@ use ethers::contract::EthLogDecode;
 use ethers::providers::Middleware;
 use ethers::types::{Address, U256};
 use ethers::utils::keccak256;
-use uuid::Uuid;
 
-use crate::ledger::did_linked_resource_id::{full_did_into_did_identity, DIDLinkedResourceId};
+use crate::ledger::did_linked_resource_id::{
+    full_did_into_did_identity, DIDLinkedResourceId, DIDLinkedResourceType,
+};
 use crate::ledger::ledger_data::LedgerDataTransformer;
 #[cfg(feature = "thegraph")]
 use crate::ledger::subgraph_query;
@@ -25,7 +26,8 @@ include!(concat!(
 
 // Address of the `EthrDIDLinkedResourcesRegistry` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
-pub const DEFAULT_LINKED_RESOURCES_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+pub const DEFAULT_LINKED_RESOURCES_REGISTRY_ADDRESS: &str =
+    "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 pub const ETHR_DID_SUB_METHOD: &str = "gmtest";
 
@@ -50,15 +52,13 @@ impl LinkedResourcesRegistry {
     /// The immutable resource is published using the signer passed in. For this transaction
     /// to succeed, the signer should be the controller of the given `did`.
     ///
-    /// The resource is given a random ID, under the provided [parent_path].
-    ///
     /// Returns the resource identifier for the pushed resource.
     pub async fn submit_immutable_json_resource<T>(
         &self,
         signer: Arc<impl Middleware>,
         did: &str,
         resource: T,
-        parent_path: &str,
+        resource_name: &str,
     ) -> Result<DIDLinkedResourceId, Box<dyn Error>>
     where
         T: LedgerDataTransformer,
@@ -66,13 +66,12 @@ impl LinkedResourcesRegistry {
         let contract = contract_with_client(signer);
 
         let resource_bytes = resource.into_ledger_bytes();
-        let resource_path = format!("{parent_path}/{}", Uuid::new_v4());
         let did_identity = full_did_into_did_identity(did);
 
         contract
             .create_immutable_resource(
                 did_identity.clone(),
-                resource_path.clone(),
+                resource_name.to_owned(),
                 ethers::types::Bytes::from(resource_bytes),
             )
             .send()
@@ -83,7 +82,8 @@ impl LinkedResourcesRegistry {
 
         Ok(DIDLinkedResourceId {
             did_identity,
-            resource_path,
+            resource_type: DIDLinkedResourceType::Immutable,
+            resource_name: resource_name.to_owned(),
         })
     }
 
@@ -96,12 +96,12 @@ impl LinkedResourcesRegistry {
         let client = get_read_only_ethers_client();
         let contract = contract_with_client(client);
 
-        let did_resource_parts = DIDLinkedResourceId::from_id(resource_id.to_owned());
+        let did_resource_parts = DIDLinkedResourceId::from_full_id(resource_id.to_owned());
 
         let resource_bytes: Vec<u8> = contract
             .get_immutable_resource(
                 did_resource_parts.did_identity,
-                did_resource_parts.resource_path,
+                did_resource_parts.resource_name,
             )
             .call()
             .await
@@ -117,7 +117,7 @@ impl LinkedResourcesRegistry {
         signer: Arc<impl Middleware>,
         did: &str,
         resource: T,
-        resource_path: &str,
+        resource_name: &str,
     ) -> Result<u64, Box<dyn Error>>
     where
         T: LedgerDataTransformer,
@@ -130,7 +130,7 @@ impl LinkedResourcesRegistry {
         let tx = contract
             .update_mutable_resource(
                 did_identity.clone(),
-                resource_path.to_owned(),
+                resource_name.to_owned(),
                 ethers::types::Bytes::from(resource_bytes),
             )
             .send()
@@ -194,7 +194,7 @@ impl LinkedResourcesRegistry {
     where
         T: LedgerDataTransformer,
     {
-        let resource_id = DIDLinkedResourceId::from_id(resource_id.to_owned());
+        let resource_id = DIDLinkedResourceId::from_full_id(resource_id.to_owned());
 
         let res =
             subgraph_query::get_resource_update_event_most_recent_to(resource_id, timestamp).await;
@@ -223,21 +223,21 @@ impl LinkedResourcesRegistry {
         let client = get_read_only_ethers_client();
         let contract = contract_with_client(client.clone());
 
-        let did_resource_parts = DIDLinkedResourceId::from_id(resource_id.to_owned());
-        let resource_path = did_resource_parts.resource_path.clone();
+        let did_resource_parts = DIDLinkedResourceId::from_full_id(resource_id.to_owned());
+        let resource_name = did_resource_parts.resource_name.clone();
 
         // get the metadata (timestamp + block number) for all mutable resource updates that have been made.
         let all_updates_metadata: Vec<MutableResourceUpdateMetadata> = contract
             .get_mutable_resource_updates_metadata(
                 did_resource_parts.did_identity,
-                resource_path.clone(),
+                resource_name.clone(),
             )
             .call()
             .await
             .unwrap();
 
         if all_updates_metadata.is_empty() {
-            panic!("No update entries for resource: {resource_path}")
+            panic!("No update entries for resource: {resource_name}")
         }
 
         // TODO - here we might binary search rather than iter all
@@ -254,13 +254,13 @@ impl LinkedResourcesRegistry {
         let suitable_update_block_number = suitable_update_metadata.block_number;
 
         // Create an event filter for resource updates, filtering for update events
-        // for the specific resource path + did identity and for the exact block number. This should result
+        // for the specific resource name + did identity and for the exact block number. This should result
         // in the exact resource update we want being found.
         let precise_resource_update_event_filter = contract
             .mutable_resource_update_event_filter()
             .filter
             .topic1(did_resource_parts.did_identity)
-            .topic2(U256::from(keccak256(resource_path)))
+            .topic2(U256::from(keccak256(resource_name)))
             .from_block(suitable_update_block_number)
             .to_block(suitable_update_block_number);
 

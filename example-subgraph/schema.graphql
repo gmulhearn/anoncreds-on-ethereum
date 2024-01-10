@@ -1,7 +1,7 @@
 type NewResourceEvent @entity(immutable: true) {
   id: Bytes!
   didIdentity: Bytes! # address
-  path: String! # string
+  name: String! # string
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -10,7 +10,7 @@ type NewResourceEvent @entity(immutable: true) {
 type MutableResourceUpdateEvent @entity(immutable: true) {
   id: Bytes!
   didIdentity: Bytes! # address
-  path: String! # string
+  name: String! # string
   resource_content: Bytes!
   resource_metadata_blockTimestamp: BigInt! # uint40
   resource_metadata_blockNumber: BigInt! # uint64

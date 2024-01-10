@@ -10,12 +10,12 @@ contract EthrDIDLinkedResourcesRegistry {
 
     EthereumDIDRegistry public didRegistry;
 
-    /// storage of string blobs, which are immutable once uploaded, and identified by its path + DID Identity
-    mapping(address => mapping(string => bytes)) private immutableResourceByPathByDidIdentity;
+    /// storage of string blobs, which are immutable once uploaded, and identified by its name + DID Identity
+    mapping(address => mapping(string => bytes)) private immutableResourceByNameByDidIdentity;
 
-    mapping(address => mapping(string => MutableResource)) private mutableResourceByPathByDidIdentity;
+    mapping(address => mapping(string => MutableResource)) private mutableResourceByNameByDidIdentity;
 
-    mapping(address => mapping(string => MutableResourceUpdateMetadata[])) private mutableResourceUpdateMetadataByPathByDidIdentity;
+    mapping(address => mapping(string => MutableResourceUpdateMetadata[])) private mutableResourceUpdateMetadataByNameByDidIdentity;
 
     struct MutableResource {
         bytes content;
@@ -33,39 +33,39 @@ contract EthrDIDLinkedResourcesRegistry {
         require (actor == didRegistry.identityOwner(identity), "bad_actor");
         _;
     }
-    event NewResourceEvent(address didIdentity, string path);
-    event MutableResourceUpdateEvent(address indexed didIdentity, string indexed indexedPath, string path, MutableResource resource);
+    event NewResourceEvent(address didIdentity, string name);
+    event MutableResourceUpdateEvent(address indexed didIdentity, string indexed indexedName, string name, MutableResource resource);
 
     constructor(address didRegistryAddress) {
         didRegistry = EthereumDIDRegistry(didRegistryAddress);
     }
 
-    function doesImmutableResourceExist(address didIdentity, string memory path) private view returns (bool) {
-        bytes memory resource = immutableResourceByPathByDidIdentity[didIdentity][path];
+    function doesImmutableResourceExist(address didIdentity, string memory name) private view returns (bool) {
+        bytes memory resource = immutableResourceByNameByDidIdentity[didIdentity][name];
         return resource.length != 0;
     }
 
     /// Store [content] as an immutable resource in this registry. Where [content] is uniquely identified
-    /// by the [path] and the DID identity.
-    /// Note that since this is immutable data, repeated [path]s can only be used once per given DID Identity.
-    function createImmutableResource(address didIdentity, string memory path, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
-        require(!doesImmutableResourceExist(didIdentity, path), "Resource already created with this Path and DID");
-        immutableResourceByPathByDidIdentity[didIdentity][path] = content;
-        emit NewResourceEvent(didIdentity, path);
+    /// by the [name] and the DID identity.
+    /// Note that since this is immutable data, repeated [name]s can only be used once per given DID Identity.
+    function createImmutableResource(address didIdentity, string memory name, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
+        require(!doesImmutableResourceExist(didIdentity, name), "Resource already created with this Name and DID");
+        immutableResourceByNameByDidIdentity[didIdentity][name] = content;
+        emit NewResourceEvent(didIdentity, name);
     }
 
-    /// Get the [content] of an immutable resource in this registry, identified by it's [path] and [didIdentity].
-    function getImmutableResource(address didIdentity, string memory path) public view returns (bytes memory) {
-        return immutableResourceByPathByDidIdentity[didIdentity][path];
+    /// Get the [content] of an immutable resource in this registry, identified by it's [name] and [didIdentity].
+    function getImmutableResource(address didIdentity, string memory name) public view returns (bytes memory) {
+        return immutableResourceByNameByDidIdentity[didIdentity][name];
     }
 
-    /// Update the mutable resource at the given [path] and [didIdentity] with the given [content].
+    /// Update the mutable resource at the given [name] and [didIdentity] with the given [content].
     /// 
-    function updateMutableResource(address didIdentity, string memory path, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
+    function updateMutableResource(address didIdentity, string memory name, bytes memory content) public onlyDidIdentityOwner(didIdentity) {
         uint32 blockTimestamp = uint32(block.timestamp);
         uint32 blockNumber = uint32(block.number);
 
-        MutableResource memory previousResource = mutableResourceByPathByDidIdentity[didIdentity][path];
+        MutableResource memory previousResource = mutableResourceByNameByDidIdentity[didIdentity][name];
 
         // Enforce no simultaneous updates
         require(blockNumber > previousResource.metadata.blockNumber);
@@ -83,18 +83,18 @@ contract EthrDIDLinkedResourcesRegistry {
         );
 
         // store an update metadata for client-side indexing purposes
-        mutableResourceUpdateMetadataByPathByDidIdentity[didIdentity][path].push(metadata);
+        mutableResourceUpdateMetadataByNameByDidIdentity[didIdentity][name].push(metadata);
 
         // set the new resource
-        mutableResourceByPathByDidIdentity[didIdentity][path] = resource;
-        emit MutableResourceUpdateEvent(didIdentity, path, path, resource);
+        mutableResourceByNameByDidIdentity[didIdentity][name] = resource;
+        emit MutableResourceUpdateEvent(didIdentity, name, name, resource);
     }
 
-    function getCurrentMutableResource(address didIdentity, string memory path) public view returns (MutableResource memory) {
-        return mutableResourceByPathByDidIdentity[didIdentity][path];
+    function getCurrentMutableResource(address didIdentity, string memory name) public view returns (MutableResource memory) {
+        return mutableResourceByNameByDidIdentity[didIdentity][name];
     }
 
-    function getMutableResourceUpdatesMetadata(address didIdentity, string memory path) public view returns (MutableResourceUpdateMetadata[] memory) {
-        return mutableResourceUpdateMetadataByPathByDidIdentity[didIdentity][path];
+    function getMutableResourceUpdatesMetadata(address didIdentity, string memory name) public view returns (MutableResourceUpdateMetadata[] memory) {
+        return mutableResourceUpdateMetadataByNameByDidIdentity[didIdentity][name];
     }
 }

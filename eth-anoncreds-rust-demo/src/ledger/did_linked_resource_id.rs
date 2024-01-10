@@ -16,18 +16,34 @@ pub fn full_did_into_did_identity(did: &str) -> H160 {
     identity_hex_str.parse().unwrap()
 }
 
-/// Represents an identifier for an immutable resource stored in the registry.
+/// Represents an identifier for an resource (immutable or mutable) stored in the registry.
 #[derive(Debug)]
 pub struct DIDLinkedResourceId {
     pub did_identity: H160,
-    pub resource_path: String,
+    pub resource_type: DIDLinkedResourceType,
+    pub resource_name: String,
+}
+
+#[derive(Debug)]
+pub enum DIDLinkedResourceType {
+    Immutable,
+    Mutable,
 }
 
 impl DIDLinkedResourceId {
-    pub fn from_id(id: String) -> Self {
+    pub fn from_full_id(id: String) -> Self {
         let Some((did, resource_path)) = id.split_once("/") else {
             panic!("Could not process as DID Resource: {id}")
         };
+
+        let (resource_type, resource_identifier) =
+            if let Some(rest) = resource_path.strip_prefix("resource/immutable/") {
+                (DIDLinkedResourceType::Immutable, rest.to_owned())
+            } else if let Some(rest) = resource_path.strip_prefix("resource/mutable/") {
+                (DIDLinkedResourceType::Mutable, rest.to_owned())
+            } else {
+                panic!("Could not process as DID Resource: {id}")
+            };
 
         let did_identity_hex_str = did
             .split(":")
@@ -37,13 +53,23 @@ impl DIDLinkedResourceId {
 
         DIDLinkedResourceId {
             did_identity,
-            resource_path: resource_path.to_owned(),
+            resource_type,
+            resource_name: resource_identifier,
         }
     }
 
-    pub fn to_id(&self) -> String {
+    pub fn to_full_id(&self) -> String {
         let did = self.author_did();
-        format!("{}/{}", did, self.resource_path)
+
+        let resource_type = match self.resource_type {
+            DIDLinkedResourceType::Immutable => "immutable",
+            DIDLinkedResourceType::Mutable => "mutable",
+        };
+
+        format!(
+            "{}/resource/{}/{}",
+            did, resource_type, self.resource_name
+        )
     }
 
     pub fn author_did(&self) -> String {

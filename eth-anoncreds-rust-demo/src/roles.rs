@@ -24,14 +24,14 @@ use anoncreds::{
 };
 
 use crate::{
-    ledger::ledger_data::status_list_update_ledger_data::StatusListUpdateLedgerData,
     ledger::contracts::ethr_did_linked_resources_registry::LinkedResourcesRegistry,
+    ledger::ledger_data::status_list_update_ledger_data::StatusListUpdateLedgerData,
     ledger::{
+        contracts::{eth_did_registry::DidEthRegistry, EtherSigner},
         did_linked_resource_id::DIDLinkedResourceId,
         ledger_data::LedgerDataTransformer,
-        contracts::{eth_did_registry::DidEthRegistry, EtherSigner},
     },
-    utils::serde_clone,
+    utils::{random_id, serde_clone},
 };
 
 /// ID/index of the issued credential in the revocation status list
@@ -68,13 +68,17 @@ impl Holder {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        self.resource_registry.get_immutable_json_resource(schema_id).await
+        self.resource_registry
+            .get_immutable_json_resource(schema_id)
+            .await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        self.resource_registry.get_immutable_json_resource(cred_def_id).await
+        self.resource_registry
+            .get_immutable_json_resource(cred_def_id)
+            .await
     }
 
     pub async fn accept_offer(&mut self, cred_offer: &CredentialOffer) -> CredentialRequest {
@@ -274,10 +278,15 @@ impl Issuer {
         // upload to ledger
         println!("Issuer: submitting schema...");
         let schema_resource_id = resource_registry
-            .submit_immutable_json_resource(signer.clone(), &issuer_did, schema.clone(), "schema")
+            .submit_immutable_json_resource(
+                signer.clone(),
+                &issuer_did,
+                schema.clone(),
+                &random_id(),
+            )
             .await
             .unwrap();
-        let schema_id = schema_resource_id.to_id();
+        let schema_id = schema_resource_id.to_full_id();
 
         let cred_def_tag = "MyCredDef";
         println!("Issuer: creating cred def for tag: {cred_def_tag}...");
@@ -299,7 +308,7 @@ impl Issuer {
                 signer.clone(),
                 &issuer_did,
                 serde_clone(&cred_def),
-                "cred_def",
+                &random_id(),
             )
             .await
             .unwrap();
@@ -310,7 +319,7 @@ impl Issuer {
         let mut tw = TailsFileWriter::new(Some(String::from(TAILS_DIR)));
         let (rev_reg_def, rev_reg_def_private) = anoncreds::issuer::create_revocation_registry_def(
             &cred_def,
-            cred_def_resource_id.to_id(),
+            cred_def_resource_id.to_full_id(),
             issuer_did.clone(),
             rev_reg_def_tag,
             RegistryType::CL_ACCUM,
@@ -326,14 +335,14 @@ impl Issuer {
                 signer.clone(),
                 &issuer_did,
                 rev_reg_def.clone(),
-                "rev_reg_def",
+                &random_id(),
             )
             .await
             .unwrap();
 
         println!("Issuer: creating rev list...");
         let rev_list = anoncreds::issuer::create_revocation_status_list(
-            rev_reg_def_resource_id.to_id(),
+            rev_reg_def_resource_id.to_full_id(),
             &rev_reg_def,
             issuer_did.clone(),
             None,
@@ -346,7 +355,7 @@ impl Issuer {
                 signer.clone(),
                 &issuer_did,
                 StatusListUpdateLedgerData::from_anoncreds_data(&rev_list),
-                &rev_reg_def_resource_id.resource_path,
+                &rev_reg_def_resource_id.resource_name,
             )
             .await
             .unwrap();
@@ -357,9 +366,9 @@ impl Issuer {
             &rev_list,
         );
 
-        let schema_id = schema_resource_id.to_id();
-        let cred_def_id = cred_def_resource_id.to_id();
-        let rev_reg_id = rev_reg_def_resource_id.to_id();
+        let schema_id = schema_resource_id.to_full_id();
+        let cred_def_id = cred_def_resource_id.to_full_id();
+        let rev_reg_id = rev_reg_def_resource_id.to_full_id();
         println!(
             "Issuer: ledger data created. \n
             \tSchema ID: {schema_id}. \n
@@ -400,18 +409,21 @@ impl Issuer {
             .await;
     }
 
-    pub async fn write_resource<T: LedgerDataTransformer>(&self, resource: T) -> Result<(), Box<dyn Error>> {
+    pub async fn write_resource<T: LedgerDataTransformer>(
+        &self,
+        resource: T,
+    ) -> Result<(), Box<dyn Error>> {
         let signer = self.signer.clone();
         self.resource_registry
-            .submit_immutable_json_resource(signer, &self.issuer_did, resource, "misc")
+            .submit_immutable_json_resource(signer, &self.issuer_did, resource, &random_id())
             .await?;
         Ok(())
     }
 
     pub fn create_offer(&mut self) -> CredentialOffer {
         let offer = anoncreds::issuer::create_credential_offer(
-            self.demo_data.schema_resource_id.to_id(),
-            self.demo_data.cred_def_resource_id.to_id(),
+            self.demo_data.schema_resource_id.to_full_id(),
+            self.demo_data.cred_def_resource_id.to_full_id(),
             &self.demo_data.correctness_proof,
         )
         .unwrap();
@@ -441,7 +453,7 @@ impl Issuer {
             cred_request,
             credential_values.into(),
             Some(RevocationRegistryId::new_unchecked(
-                self.demo_data.rev_reg_def_resource_id.to_id(),
+                self.demo_data.rev_reg_def_resource_id.to_full_id(),
             )),
             Some(&self.demo_data.rev_list),
             Some(CredentialRevocationConfig {
@@ -483,7 +495,7 @@ impl Issuer {
                 self.signer.clone(),
                 &self.issuer_did,
                 StatusListUpdateLedgerData::from_anoncreds_data(&new_list),
-                &self.demo_data.rev_reg_def_resource_id.resource_path,
+                &self.demo_data.rev_reg_def_resource_id.resource_name,
             )
             .await
             .unwrap();
@@ -522,13 +534,17 @@ impl Verifier {
     async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
         println!("Holder: fetching schema...");
-        self.resource_registry.get_immutable_json_resource(schema_id).await
+        self.resource_registry
+            .get_immutable_json_resource(schema_id)
+            .await
     }
 
     async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
         println!("Holder: fetching cred def...");
-        self.resource_registry.get_immutable_json_resource(cred_def_id).await
+        self.resource_registry
+            .get_immutable_json_resource(cred_def_id)
+            .await
     }
 
     pub fn request_presentation(&mut self, from_cred_def: &str) -> PresentationRequest {
@@ -642,7 +658,10 @@ impl Verifier {
             &RevocationRegistryDefinitionId,
             &RevocationRegistryDefinition,
         > = HashMap::new();
-        let rev_reg_def_for_cred = self.resource_registry.get_immutable_json_resource(&rev_reg_id).await;
+        let rev_reg_def_for_cred = self
+            .resource_registry
+            .get_immutable_json_resource(&rev_reg_id)
+            .await;
         // re-typing from RevocationRegistryId to RevocationRegistryDefinitionId?! seems to be the same thing?
         let rev_reg_def_id = rev_reg_id.try_into().unwrap();
         rev_reg_defs.insert(&rev_reg_def_id, &rev_reg_def_for_cred);

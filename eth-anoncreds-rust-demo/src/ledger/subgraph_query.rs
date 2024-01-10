@@ -5,9 +5,9 @@ use super::did_linked_resource_id::DIDLinkedResourceId;
 
 const MOST_RECENT_RESOURCE_UPDATE_OP_NAME: &str = "MostRecentResourceUpdate";
 const MOST_RECENT_RESOURCE_UPDATE_QUERY: &str = r#"
-query MostRecentResourceUpdate($didIdentity: String, $path: String, $lteTimestamp: Int) {
+query MostRecentResourceUpdate($didIdentity: String, $name: String, $lteTimestamp: Int) {
     mutableResourceUpdateEvents(
-      where: {blockTimestamp_lte: $lteTimestamp, didIdentity: $didIdentity, path: $path }
+      where: {blockTimestamp_lte: $lteTimestamp, didIdentity: $didIdentity, name: $name }
       first: 1
       orderBy: blockTimestamp
       orderDirection: desc
@@ -16,7 +16,7 @@ query MostRecentResourceUpdate($didIdentity: String, $path: String, $lteTimestam
       blockNumber
       blockTimestamp
       didIdentity
-      path
+      name
       resource_content
       resource_metadata_blockNumber
       resource_metadata_blockTimestamp
@@ -32,14 +32,14 @@ pub async fn get_resource_update_event_most_recent_to(
     timestamp: u64,
 ) -> MostRecentResourceUpdateQueryResult {
     let did_identity = resource_id.did_identity;
-    let path = resource_id.resource_path;
+    let resource_name = resource_id.resource_name;
 
     let request_body = json!({
         "operationName": MOST_RECENT_RESOURCE_UPDATE_OP_NAME,
         "query": MOST_RECENT_RESOURCE_UPDATE_QUERY,
         "variables": {
             "didIdentity": did_identity,
-            "path": path,
+            "name": resource_name,
             "lteTimestamp": timestamp,
         }
     });
@@ -59,8 +59,8 @@ pub async fn get_resource_update_event_most_recent_to(
 
 #[derive(Deserialize)]
 pub struct MostRecentResourceUpdateQueryResult {
-    #[serde(rename = "path")]
-    pub path: String,
+    #[serde(rename = "name")]
+    pub name: String,
     #[serde(rename = "didIdentity")]
     pub did_identity: String,
     #[serde(rename = "resource_content")]
