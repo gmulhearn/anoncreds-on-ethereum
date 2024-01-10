@@ -3,11 +3,11 @@ schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum
-    name: AnoncredsRegistry
+    name: EthrDIDLinkedResourcesRegistry
     network: mainnet
     source:
       address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
-      abi: AnoncredsRegistry
+      abi: EthrDIDLinkedResourcesRegistry
       startBlock: 0
     mapping:
       kind: ethereum/events
@@ -17,11 +17,11 @@ dataSources:
         - NewResourceEvent
         - MutableResourceUpdateEvent
       abis:
-        - name: AnoncredsRegistry
-          file: ../anoncreds-smart-contracts-js/artifacts/contracts/AnoncredsRegistry.sol/AnoncredsRegistry.json
+        - name: EthrDIDLinkedResourcesRegistry
+          file: ../smart-contracts/artifacts/contracts/EthrDIDLinkedResourcesRegistry.sol/EthrDIDLinkedResourcesRegistry.json
       eventHandlers:
         - event: NewResourceEvent(address,string)
           handler: handleNewResourceEvent
         - event: MutableResourceUpdateEvent(indexed address,indexed string,string,(bytes,(uint40,uint64),(uint40,uint64)))
           handler: handleMutableResourceUpdateEvent
-      file: ./src/anoncreds-registry.ts
+      file: ./src/ethr-did-linked-resources-registry.ts

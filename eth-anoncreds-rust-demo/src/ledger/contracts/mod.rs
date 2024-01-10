@@ -8,7 +8,7 @@ use ethers::{
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
 
-pub mod anoncreds_eth_registry;
+pub mod ethr_did_linked_resources_registry;
 pub mod eth_did_registry;
 
 // Ethereum RPC of the network to use (defaults to the hardhat local network)

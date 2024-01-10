@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::ledger::registries::anoncreds_eth_registry::DIDResourceId;
+use super::did_linked_resource_id::DIDLinkedResourceId;
 
 const MOST_RECENT_RESOURCE_UPDATE_OP_NAME: &str = "MostRecentResourceUpdate";
 const MOST_RECENT_RESOURCE_UPDATE_QUERY: &str = r#"
@@ -28,7 +28,7 @@ query MostRecentResourceUpdate($didIdentity: String, $path: String, $lteTimestam
 const SUBGRAPH_API_URL: &str = "http://localhost:8000/subgraphs/name/anoncreds-registry-subgraph";
 
 pub async fn get_resource_update_event_most_recent_to(
-    resource_id: DIDResourceId,
+    resource_id: DIDLinkedResourceId,
     timestamp: u64,
 ) -> MostRecentResourceUpdateQueryResult {
     let did_identity = resource_id.did_identity;

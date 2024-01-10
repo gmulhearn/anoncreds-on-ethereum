@@ -6,7 +6,7 @@ import "./EthereumDIDRegistry.sol";
 /// Contract for storing and retrieving immutable resources (e.g. anoncreds assets)
 /// uploaded by an authenticated signer [address].
 /// TODO
-contract AnoncredsRegistry {
+contract EthrDIDLinkedResourcesRegistry {
 
     EthereumDIDRegistry public didRegistry;
 

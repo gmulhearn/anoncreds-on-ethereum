@@ -1,4 +1,12 @@
 {
-    "name": "ether-anoncreds-js-components",
-    "workspaces": ["anoncreds-registry-subgraph", "anoncreds-smart-contracts-js"]
+  "name": "js-components",
+  "workspaces": [
+    "example-subgraph",
+    "smart-contracts"
+  ],
+  "scripts": {
+    "clean:subgraph": "rm -rf example-subgraph/build && rm -rf example-subgraph/generated",
+    "clean:contracts": "rm -rf smart-contracts/artifacts && rm -rf smart-contracts/cache && rm -rf smart-contracts/typechain-types",
+    "clean": "rm -rf node_modules && npm run clean:subgraph && npm run clean:contracts"
   }
+}

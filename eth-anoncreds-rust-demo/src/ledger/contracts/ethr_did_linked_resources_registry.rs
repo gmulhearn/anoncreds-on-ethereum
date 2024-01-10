@@ -3,91 +3,46 @@ use std::error::Error;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use ethers::abi::RawLog;
 use ethers::contract::EthLogDecode;
 use ethers::providers::Middleware;
 use ethers::types::{Address, U256};
 use ethers::utils::keccak256;
-use ethers::{abi::RawLog, types::H160};
 use uuid::Uuid;
 
-use crate::ledger::ledger_data::LedgerData;
+use crate::ledger::did_linked_resource_id::{full_did_into_did_identity, DIDLinkedResourceId};
+use crate::ledger::ledger_data::LedgerDataTransformer;
 #[cfg(feature = "thegraph")]
 use crate::ledger::subgraph_query;
 
 use super::get_read_only_ethers_client;
 
 // Include generated contract types from build script
-include!(concat!(env!("OUT_DIR"), "/anoncreds_registry_contract.rs"));
+include!(concat!(
+    env!("OUT_DIR"),
+    "/ethr_did_linked_resources_registry_contract.rs"
+));
 
-// Address of the `AnoncredsRegistry` smart contract to use
+// Address of the `EthrDIDLinkedResourcesRegistry` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
-pub const DEFAULT_ANONCRED_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+pub const DEFAULT_LINKED_RESOURCES_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 pub const ETHR_DID_SUB_METHOD: &str = "gmtest";
 
-pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> AnoncredsRegistry<T> {
-    let anoncreds_contract_address = env::var("ANONCRED_REGISTRY_ADDRESS")
-        .unwrap_or(DEFAULT_ANONCRED_REGISTRY_ADDRESS.to_owned());
-    AnoncredsRegistry::new(
-        anoncreds_contract_address.parse::<Address>().unwrap(),
+pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> EthrDIDLinkedResourcesRegistry<T> {
+    let resources_contract_address = env::var("RESOURCES_REGISTRY_ADDRESS")
+        .unwrap_or(DEFAULT_LINKED_RESOURCES_REGISTRY_ADDRESS.to_owned());
+    EthrDIDLinkedResourcesRegistry::new(
+        resources_contract_address.parse::<Address>().unwrap(),
         client,
     )
 }
 
-pub fn did_identity_as_full_did(address: &H160) -> String {
-    // note that debug fmt of address is the '0x..' hex encoding.
-    // where as .to_string() (fmt) truncates it
-    format!("did:ethr:{ETHR_DID_SUB_METHOD}:{address:?}")
-}
+pub struct LinkedResourcesRegistry;
 
-pub fn full_did_into_did_identity(did: &str) -> H160 {
-    let identity_hex_str = did
-        .split(":")
-        .last()
-        .expect(&format!("Could not read find identity of DID: {did}"));
-    identity_hex_str.parse().unwrap()
-}
-
-/// Represents an identifier for an immutable resource stored in the registry.
-#[derive(Debug)]
-pub struct DIDResourceId {
-    pub did_identity: H160,
-    pub resource_path: String,
-}
-
-impl DIDResourceId {
-    pub fn from_id(id: String) -> Self {
-        let Some((did, resource_path)) = id.split_once("/") else {
-            panic!("Could not process as DID Resource: {id}")
-        };
-
-        let did_identity_hex_str = did
-            .split(":")
-            .last()
-            .expect(&format!("Could not read find author of DID: {did}"));
-        let did_identity = did_identity_hex_str.parse().unwrap();
-
-        DIDResourceId {
-            did_identity,
-            resource_path: resource_path.to_owned(),
-        }
-    }
-
-    pub fn to_id(&self) -> String {
-        let did = self.author_did();
-        format!("{}/{}", did, self.resource_path)
-    }
-
-    pub fn author_did(&self) -> String {
-        did_identity_as_full_did(&self.did_identity)
-    }
-}
-
-pub struct AnoncredsEthRegistry;
-
-impl AnoncredsEthRegistry {
+impl LinkedResourcesRegistry {
     pub fn new() -> Self {
-        AnoncredsEthRegistry {}
+        LinkedResourcesRegistry {}
     }
 
     /// Push any JSON serializable [resource] to the registry as an immutable resource.
@@ -104,9 +59,9 @@ impl AnoncredsEthRegistry {
         did: &str,
         resource: T,
         parent_path: &str,
-    ) -> Result<DIDResourceId, Box<dyn Error>>
+    ) -> Result<DIDLinkedResourceId, Box<dyn Error>>
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
         let contract = contract_with_client(signer);
 
@@ -126,7 +81,7 @@ impl AnoncredsEthRegistry {
             .await
             .map_err(|e| anyhow!("{e:?}"))?;
 
-        Ok(DIDResourceId {
+        Ok(DIDLinkedResourceId {
             did_identity,
             resource_path,
         })
@@ -136,12 +91,12 @@ impl AnoncredsEthRegistry {
     /// then JSON deserialize the resource contents into type [D].
     pub async fn get_immutable_json_resource<T>(&self, resource_id: &str) -> T
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
         let client = get_read_only_ethers_client();
         let contract = contract_with_client(client);
 
-        let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
+        let did_resource_parts = DIDLinkedResourceId::from_id(resource_id.to_owned());
 
         let resource_bytes: Vec<u8> = contract
             .get_immutable_resource(
@@ -165,7 +120,7 @@ impl AnoncredsEthRegistry {
         resource_path: &str,
     ) -> Result<u64, Box<dyn Error>>
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
         let contract = contract_with_client(signer);
 
@@ -185,18 +140,19 @@ impl AnoncredsEthRegistry {
             .map_err(|e| anyhow!("{e:?}"))?
             .unwrap();
 
-        // extract the emitted [AnoncredsRegistryEvents::MutableResourceUpdateEventFilter] event
+        // extract the emitted [EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdateEventFilter] event
         // from the transaction's receipt. This event importantly contains the ledger
         // timestamp that will be used for that resource update entry.
         let resource_update_event = tx
             .logs
             .into_iter()
             .find_map(|log| {
-                let contract_event = AnoncredsRegistryEvents::decode_log(&RawLog::from(log));
+                let contract_event =
+                    EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(AnoncredsRegistryEvents::MutableResourceUpdateEventFilter(inner)) => {
-                        Some(inner)
-                    }
+                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdateEventFilter(
+                        inner,
+                    )) => Some(inner),
                     _ => None,
                 }
             })
@@ -218,7 +174,7 @@ impl AnoncredsEthRegistry {
         timestamp: u64,
     ) -> (T, u64)
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
         #[cfg(feature = "thegraph")]
         return self
@@ -236,9 +192,9 @@ impl AnoncredsEthRegistry {
         timestamp: u64,
     ) -> (T, u64)
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
-        let resource_id = DIDResourceId::from_id(resource_id.to_owned());
+        let resource_id = DIDLinkedResourceId::from_id(resource_id.to_owned());
 
         let res =
             subgraph_query::get_resource_update_event_most_recent_to(resource_id, timestamp).await;
@@ -262,12 +218,12 @@ impl AnoncredsEthRegistry {
         timestamp: u64,
     ) -> (T, u64)
     where
-        T: LedgerData,
+        T: LedgerDataTransformer,
     {
         let client = get_read_only_ethers_client();
         let contract = contract_with_client(client.clone());
 
-        let did_resource_parts = DIDResourceId::from_id(resource_id.to_owned());
+        let did_resource_parts = DIDLinkedResourceId::from_id(resource_id.to_owned());
         let resource_path = did_resource_parts.resource_path.clone();
 
         // get the metadata (timestamp + block number) for all mutable resource updates that have been made.
@@ -315,11 +271,12 @@ impl AnoncredsEthRegistry {
             .unwrap()
             .into_iter()
             .filter_map(|log| {
-                let contract_event = AnoncredsRegistryEvents::decode_log(&RawLog::from(log));
+                let contract_event =
+                    EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(AnoncredsRegistryEvents::MutableResourceUpdateEventFilter(inner)) => {
-                        Some(inner)
-                    }
+                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdateEventFilter(
+                        inner,
+                    )) => Some(inner),
                     _ => None,
                 }
             })

@@ -122,7 +122,7 @@ To setup and run the demo:
 3. within `anoncreds-smart-contracts-js`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
 4. within `anoncreds-smart-contracts-js`: use hardhat to deploy the `AnoncredsRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
    - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
-5. within `eth-anoncreds-rust-demo`: run the demo!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
+5. within `eth-anoncreds-rust-demo`: run the demo!: `RESOURCES_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
 
 ## Integration with The Graph
 As mentioned above, a common use case for holders when creating NRPs is to find `StatusListUpdateEvent` events which occur between a range of time, or as to close a timestamp as possible without being later. The native Ethereum API does not support that type of event filtering, which is what lead to the [approach discussed above](#approach). However, an alternative to that, is to use Ethereum indexing infrastructure, such as [The Graph](https://thegraph.com/), which allows for these queries to be performed.
@@ -140,4 +140,4 @@ When the subgraph is deployed, it can be queried with graphql to "get `StatusLis
     2. codegen `npm run codegen`
     3. create the local subgraph: `npm run create-local`
     4. deploy the local subgraph: `npm run deploy-local`
-5. within the `eth-anoncreds-rust-demo`: run the demo with the graph feature enabled!: `ANONCRED_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run --features thegraph`
+5. within the `eth-anoncreds-rust-demo`: run the demo with the graph feature enabled!: `RESOURCES_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run --features thegraph`

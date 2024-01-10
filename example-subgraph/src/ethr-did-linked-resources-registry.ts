@@ -1,7 +1,7 @@
 import {
   NewResourceEvent as NewResourceEventEvent,
   MutableResourceUpdateEvent as MutableResourceUpdateEventEvent
-} from "../generated/AnoncredsRegistry/AnoncredsRegistry"
+} from "../generated/EthrDIDLinkedResourcesRegistry/EthrDIDLinkedResourcesRegistry"
 import { NewResourceEvent, MutableResourceUpdateEvent } from "../generated/schema"
 
 export function handleNewResourceEvent(event: NewResourceEventEvent): void {

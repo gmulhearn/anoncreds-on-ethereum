@@ -3,9 +3,9 @@ use bitvec::vec::BitVec;
 use serde_json::{json, Value};
 use ursa::pair::PointG2;
 
-use crate::ledger::registries::anoncreds_eth_registry::DIDResourceId;
+use crate::ledger::did_linked_resource_id::DIDLinkedResourceId;
 
-use super::LedgerData;
+use super::LedgerDataTransformer;
 
 #[derive(Debug, Clone)]
 pub struct StatusListUpdateLedgerData {
@@ -13,7 +13,7 @@ pub struct StatusListUpdateLedgerData {
     pub rev_list: BitVec,
 }
 
-impl LedgerData for StatusListUpdateLedgerData {
+impl LedgerDataTransformer for StatusListUpdateLedgerData {
     // ledger data: [accumulator (128bytes), rev_list (variable)]
 
     fn into_ledger_bytes(self) -> Vec<u8> {
@@ -64,7 +64,7 @@ impl StatusListUpdateLedgerData {
         timestamp: u64,
         rev_reg_id: &str,
     ) -> anoncreds::types::RevocationStatusList {
-        let did_resource = DIDResourceId::from_id(rev_reg_id.to_owned());
+        let did_resource = DIDLinkedResourceId::from_id(rev_reg_id.to_owned());
 
         let current_accumulator_str = self.accumulator.to_string().unwrap();
         let current_accumulator = serde_json::from_value(json!(&current_accumulator_str)).unwrap();

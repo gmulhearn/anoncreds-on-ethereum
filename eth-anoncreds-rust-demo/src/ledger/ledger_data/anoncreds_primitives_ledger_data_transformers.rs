@@ -1,9 +1,9 @@
 //! Define ledger data conversions for anoncreds primitives.
 //! Currently just using serde JSON form. but could be more optimized.
 
-use super::LedgerData;
+use super::LedgerDataTransformer;
 
-impl LedgerData for anoncreds::data_types::schema::Schema {
+impl LedgerDataTransformer for anoncreds::data_types::schema::Schema {
     fn into_ledger_bytes(self) -> Vec<u8> {
         serde_json::to_vec(&self).unwrap()
     }
@@ -16,7 +16,7 @@ impl LedgerData for anoncreds::data_types::schema::Schema {
     }
 }
 
-impl LedgerData for anoncreds::data_types::cred_def::CredentialDefinition {
+impl LedgerDataTransformer for anoncreds::data_types::cred_def::CredentialDefinition {
     fn into_ledger_bytes(self) -> Vec<u8> {
         serde_json::to_vec(&self).unwrap()
     }
@@ -29,7 +29,7 @@ impl LedgerData for anoncreds::data_types::cred_def::CredentialDefinition {
     }
 }
 
-impl LedgerData for anoncreds::data_types::rev_reg_def::RevocationRegistryDefinition {
+impl LedgerDataTransformer for anoncreds::data_types::rev_reg_def::RevocationRegistryDefinition {
     fn into_ledger_bytes(self) -> Vec<u8> {
         serde_json::to_vec(&self).unwrap()
     }
