@@ -182,8 +182,8 @@ mod tests {
 
     #[tokio::test]
     async fn testtest() {
-        let initial_signer = get_writer_ethers_client(0);
-        let did = did_identity_as_full_did(&initial_signer.address());
+        let signer = get_writer_ethers_client(0);
+        let did = did_identity_as_full_did(&signer.address());
 
         let registry = DLRRegistry;
 
@@ -192,7 +192,7 @@ mod tests {
 
         let resource1 = registry
             .create_or_update_resource(
-                initial_signer.clone(),
+                signer.clone(),
                 &did,
                 ResourceInput {
                     resource_name: resource_name.to_owned(),
@@ -208,7 +208,7 @@ mod tests {
 
         let resource2 = registry
             .create_or_update_resource(
-                initial_signer.clone(),
+                signer.clone(),
                 &did,
                 ResourceInput {
                     resource_name: resource_name.to_owned(),
@@ -224,7 +224,7 @@ mod tests {
 
         let resource3 = registry
             .create_or_update_resource(
-                initial_signer.clone(),
+                signer.clone(),
                 &did,
                 ResourceInput {
                     resource_name: resource_name.to_owned(),

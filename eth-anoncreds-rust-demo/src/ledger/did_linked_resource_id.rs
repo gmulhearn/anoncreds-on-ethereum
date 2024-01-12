@@ -66,10 +66,7 @@ impl DIDLinkedResourceId {
             DIDLinkedResourceType::Mutable => "mut",
         };
 
-        format!(
-            "{}/res/{}/{}",
-            did, resource_type, self.resource_name
-        )
+        format!("{}/res/{}/{}", did, resource_type, self.resource_name)
     }
 
     pub fn author_did(&self) -> String {

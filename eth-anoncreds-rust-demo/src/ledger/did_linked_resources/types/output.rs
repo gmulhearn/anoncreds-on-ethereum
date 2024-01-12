@@ -4,6 +4,7 @@ use chrono::DateTime;
 /// Resource struct represents a resource with various properties.
 ///
 /// https://wiki.trustoverip.org/display/HOME/DID-Linked+Resources+Specification
+#[derive(Clone, Debug, PartialEq)]
 pub struct Resource {
     /// A string or a map that conforms to the rules of [RFC3986] for URIs which SHOULD directly lead to a location where the resource can be accessed from.
     /// For example: did:example:46e2af9a-2ea0-4815-999d-730a6778227c/resources/0f964a80-5d18-4867-83e3-b47f5a756f02, or, https://gateway.ipfs.io/ipfs/bafybeihetj2ng3d74k7t754atv2s5dk76pcqtvxls6dntef3xa6rax25xe

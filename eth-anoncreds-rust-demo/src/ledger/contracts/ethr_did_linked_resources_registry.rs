@@ -150,9 +150,11 @@ impl LinkedResourcesRegistry {
                 let contract_event =
                     EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
-                        inner,
-                    )) => Some(inner),
+                    Ok(
+                        EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
+                            inner,
+                        ),
+                    ) => Some(inner),
                     _ => None,
                 }
             })
@@ -274,9 +276,11 @@ impl LinkedResourcesRegistry {
                 let contract_event =
                     EthrDIDLinkedResourcesRegistryEvents::decode_log(&RawLog::from(log));
                 match contract_event {
-                    Ok(EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
-                        inner,
-                    )) => Some(inner),
+                    Ok(
+                        EthrDIDLinkedResourcesRegistryEvents::MutableResourceUpdatedEventFilter(
+                            inner,
+                        ),
+                    ) => Some(inner),
                     _ => None,
                 }
             })

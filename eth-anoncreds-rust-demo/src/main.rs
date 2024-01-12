@@ -10,7 +10,10 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
-    ledger::{ledger_data::json_ledger_data_transformer::JsonLedgerData, contracts::get_writer_ethers_client, did_linked_resource_id::did_identity_as_full_did},
+    ledger::{
+        contracts::get_writer_ethers_client, did_linked_resource_id::did_identity_as_full_did,
+        ledger_data::json_ledger_data_transformer::JsonLedgerData,
+    },
     roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
     utils::get_epoch_secs,
 };

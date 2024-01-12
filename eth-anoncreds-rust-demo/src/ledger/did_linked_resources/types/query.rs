@@ -182,7 +182,7 @@ mod tests {
         );
         assert!(query.parameters.resource_metadata.is_none());
 
-        let query = ResourceQuery::parse_from_str("did:ethr:0x1234567890123456789012345678901234567890?resourceName=degreeLaw&resourceType=JSONSchema2020&versionTime=2018-07-19T08:40:00Z&resourceMetadata=true").unwrap();   
+        let query = ResourceQuery::parse_from_str("did:ethr:0x1234567890123456789012345678901234567890?resourceName=degreeLaw&resourceType=JSONSchema2020&versionTime=2018-07-19T08:40:00Z&resourceMetadata=true").unwrap();
         assert_eq!(
             query.did_identity,
             "0x1234567890123456789012345678901234567890"

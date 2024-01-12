@@ -121,6 +121,11 @@ contract EthrDLRRegistry {
         return resourceMetadataChains[didIdentity][resourceNameAndType][index];
     }
 
+    function getResourceMetadataChainLatestNode(address didIdentity, string memory resourceNameAndType) public view returns (ResourceVersionMetadataChainNode memory) {
+        uint256 resourceMetadataChainLength = resourceMetadataChains[didIdentity][resourceNameAndType].length;
+        return resourceMetadataChains[didIdentity][resourceNameAndType][resourceMetadataChainLength - 1];
+    }
+
     function getResourceMetadataChainSlice(address didIdentity, string memory resourceNameAndType, uint256 start, uint256 end) public view returns (ResourceVersionMetadataChainNode[] memory) {
         ResourceVersionMetadataChainNode[] memory resourceMetadataChainSlice = new ResourceVersionMetadataChainNode[](end - start);
 
