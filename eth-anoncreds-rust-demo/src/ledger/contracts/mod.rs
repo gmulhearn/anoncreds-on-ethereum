@@ -10,6 +10,7 @@ use ethers::{
 
 pub mod ethr_did_linked_resources_registry;
 pub mod eth_did_registry;
+pub mod ethr_dlr_registry;
 
 // Ethereum RPC of the network to use (defaults to the hardhat local network)
 pub const REGISTRY_RPC: &str = "http://localhost:8545";

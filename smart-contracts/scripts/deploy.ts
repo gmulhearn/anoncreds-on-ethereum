@@ -4,8 +4,8 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   const EthereumDIDRegistry = await ethers.getContractFactory("EthereumDIDRegistry");
-
   const EthrDIDLinkedResourcesRegistry = await ethers.getContractFactory("EthrDIDLinkedResourcesRegistry");
+  const EthrDLRRegistry = await ethers.getContractFactory("EthrDLRRegistry");
 
   console.log("Deploying contracts with the account:", deployer.address);
 
@@ -21,6 +21,13 @@ async function main() {
 
   console.log(
     `EthrDIDLinkedResourcesRegistry deployed to ${resourcesRegistry.address}`
+  );
+
+  const dlrRegistry = await EthrDLRRegistry.deploy(ethereumDidRegistry.address);
+  await dlrRegistry.deployed();
+
+  console.log(
+    `EthrDLRRegistry deployed to ${dlrRegistry.address}`
   );
 }
 
