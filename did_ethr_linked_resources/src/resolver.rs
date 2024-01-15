@@ -4,7 +4,7 @@ use chrono::Utc;
 
 use crate::{
     contracts::ethr_dlr_registry::{
-        DLRRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
+        EthrDIDLinkedResourcesRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
     types::query::ResourceQuery,
     utils::did_identity_as_full_did,
@@ -13,13 +13,13 @@ use crate::{
 use super::types::output::Resource;
 
 pub struct EthrDidLinkedResourcesResolver {
-    registry: DLRRegistry,
+    registry: EthrDIDLinkedResourcesRegistry,
 }
 
 impl EthrDidLinkedResourcesResolver {
     pub fn new() -> Self {
         Self {
-            registry: DLRRegistry,
+            registry: EthrDIDLinkedResourcesRegistry,
         }
     }
 
@@ -93,7 +93,7 @@ impl EthrDidLinkedResourcesResolver {
 #[cfg(test)]
 mod tests {
     use crate::{
-        contracts::{ethr_dlr_registry::DLRRegistry, test_utils::get_writer_ethers_client},
+        contracts::{ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, test_utils::get_writer_ethers_client},
         types::input::ResourceInput,
         utils::did_identity_as_full_did,
     };
@@ -108,7 +108,7 @@ mod tests {
         let signer = get_writer_ethers_client(0);
         let did = did_identity_as_full_did(&signer.address());
 
-        let registry = DLRRegistry;
+        let registry = EthrDIDLinkedResourcesRegistry;
 
         let created_resource = registry
             .create_or_update_resource(

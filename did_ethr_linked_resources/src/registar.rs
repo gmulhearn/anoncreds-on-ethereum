@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ethers::providers::Middleware;
 
-use crate::contracts::ethr_dlr_registry::DLRRegistry;
+use crate::contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry;
 
 use super::{
     resolver::EthrDidLinkedResourcesResolver,
@@ -10,7 +10,7 @@ use super::{
 };
 
 pub struct EthrDidLinkedResourcesRegistar<S> {
-    registry: DLRRegistry,
+    registry: EthrDIDLinkedResourcesRegistry,
     resolver: EthrDidLinkedResourcesResolver, // eh - only need this for the metadata node convenience method
     signer: Arc<S>,
 }
@@ -21,7 +21,7 @@ where
 {
     pub fn new(signer: Arc<S>) -> Self {
         Self {
-            registry: DLRRegistry,
+            registry: EthrDIDLinkedResourcesRegistry,
             resolver: EthrDidLinkedResourcesResolver::new(),
             signer,
         }

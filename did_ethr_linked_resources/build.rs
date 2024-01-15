@@ -20,10 +20,10 @@ fn main() {
         .write_to_file(out_file)
         .unwrap();
 
-    // gen types for EthrDLRRegistry.sol
+    // gen types for EthrDIDLinkedResourcesRegistry.sol
 
     let abi_source =
-        "../smart-contracts/artifacts/contracts/EthrDLRRegistry.sol/EthrDLRRegistry.json";
+        "../smart-contracts/artifacts/contracts/EthrDIDLinkedResourcesRegistry.sol/EthrDIDLinkedResourcesRegistry.json";
     let out_file = Path::new(&out_dir).join("ethr_dlr_registry_contract.rs");
     if out_file.exists() {
         std::fs::remove_file(&out_file).unwrap();

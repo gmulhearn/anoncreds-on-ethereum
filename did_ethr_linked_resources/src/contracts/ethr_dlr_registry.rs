@@ -15,9 +15,9 @@ use super::get_read_only_ethers_client;
 // Include generated contract types from build script
 include!(concat!(env!("OUT_DIR"), "/ethr_dlr_registry_contract.rs"));
 
-// Address of the `EthrDLRRegistry.sol` smart contract to use
+// Address of the `EthrDIDLinkedResourcesRegistry.sol` smart contract to use
 // (should copy and paste the address value after a hardhat deploy script)
-pub const ETHR_DLR_REGISTRY_ADDRESS: &str = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+pub const ETHR_DLR_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> EthrDLRRegistry<T> {
     EthrDLRRegistry::new(
@@ -26,9 +26,9 @@ pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> EthrDLRRegistry<T>
     )
 }
 
-pub struct DLRRegistry;
+pub struct EthrDIDLinkedResourcesRegistry;
 
-impl DLRRegistry {
+impl EthrDIDLinkedResourcesRegistry {
     pub async fn create_or_update_resource(
         &self,
         signer: Arc<impl Middleware>,
@@ -180,14 +180,14 @@ mod tests {
         utils::did_identity_as_full_did,
     };
 
-    use super::DLRRegistry;
+    use super::EthrDIDLinkedResourcesRegistry;
 
     #[tokio::test]
     async fn testtest() {
         let signer = get_writer_ethers_client(0);
         let did = did_identity_as_full_did(&signer.address());
 
-        let registry = DLRRegistry;
+        let registry = EthrDIDLinkedResourcesRegistry;
 
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";
