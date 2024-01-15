@@ -1,5 +1,5 @@
 [package]
-name = "eth-anoncreds-rust-demo"
+name = "did_ethr_anoncreds_demo"
 version = "0.1.0"
 edition = "2021"
 
