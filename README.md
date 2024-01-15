@@ -1,7 +1,5 @@
 # DID Linked Resources for `did:ethr` + Application in Anoncreds
-This project defines an extension on the `did:ethr` method to support creation and retrieval of documents which are verifiably controlled by the given `did:ethr` DID (_DID Linked Resources_). This includes support for:
-* **Immutable Resources**: resources which once created by a DID, the content can never be changed
-* **Mutable Resources**: resources which can have it's content changed over time by the DID, with full historical states maintained
+This project defines an extension on the `did:ethr` method to support creation and retrieval of resources which are verifiably controlled by the given `did:ethr` DID (_DID Linked Resources_).
 
 DID Linked Resources can be used for many applications, however this project demonstrates how these resources can be used in an [Anoncreds](https://hyperledger.github.io/anoncreds-spec/) use case. This includes a full-flow Issuer/Holder/Verifier demo (with revocation support).
 

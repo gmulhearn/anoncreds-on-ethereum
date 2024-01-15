@@ -1,4 +1,5 @@
 pub mod anoncreds_method;
+pub mod ethers_client;
 pub mod roles;
 pub mod utils;
 
@@ -11,11 +12,13 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
-    anoncreds_method::{
-        ethers_client::get_writer_ethers_client,
-        ledger_data_transformer::json_ledger_data_transformer::JsonLedgerData,
+    anoncreds_method::ledger_data_transformer::json_ledger_data_transformer::JsonLedgerData,
+    ethers_client::get_writer_ethers_client,
+    roles::{
+        holder::Holder,
+        issuer::{CredRevocationUpdateType, Issuer},
+        verifier::Verifier,
     },
-    roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
     utils::get_epoch_secs,
 };
 
@@ -40,7 +43,7 @@ async fn full_demo() {
     prompt_input_to_continue();
 
     // auth control demo
-    // did_controller_auth_demo(&mut issuer).await;
+    did_controller_auth_demo(&mut issuer).await;
     prompt_input_to_continue();
 
     // issue the cred to the holder
@@ -98,7 +101,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     );
 
     let res = issuer
-        .write_resource(JsonLedgerData(resource.clone()))
+        .write_arbitrary_resource(JsonLedgerData(resource.clone()))
         .await;
     println!("success: {}", res.is_ok());
 
@@ -119,7 +122,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     );
 
     let res = issuer
-        .write_resource(JsonLedgerData(resource.clone()))
+        .write_arbitrary_resource(JsonLedgerData(resource.clone()))
         .await;
     println!("success: {}", res.is_ok());
 
@@ -132,7 +135,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     issuer.change_signer(wrong_controller);
 
     let res = issuer
-        .write_resource(JsonLedgerData(resource.clone()))
+        .write_arbitrary_resource(JsonLedgerData(resource.clone()))
         .await;
     println!("success: {}", res.is_ok());
 
@@ -142,7 +145,9 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
         original_controller.address()
     );
     issuer.change_signer(original_controller.clone());
-    let res = issuer.write_resource(JsonLedgerData(resource)).await;
+    let res = issuer
+        .write_arbitrary_resource(JsonLedgerData(resource))
+        .await;
     println!("success: {}", res.is_ok());
 
     // change back to original for sake of the new

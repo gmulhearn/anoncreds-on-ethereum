@@ -35,7 +35,7 @@ where
         let resource = self
             .registry
             .create_or_update_resource(self.signer.clone(), &did, resource_input)
-            .await;
+            .await?;
 
         let metadata_node = self
             .resolver

@@ -122,7 +122,7 @@ mod tests {
                     content: "hello world".as_bytes().to_vec(),
                 },
             )
-            .await;
+            .await.unwrap();
         dbg!(&created_resource);
 
         // resolve exact

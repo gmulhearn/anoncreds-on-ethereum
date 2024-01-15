@@ -1,5 +1,7 @@
+use std::error::Error;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use ethers::abi::RawLog;
 use ethers::contract::EthEvent;
 use ethers::types::H160;
@@ -32,7 +34,7 @@ impl DLRRegistry {
         signer: Arc<impl Middleware>,
         did: &str,
         resource: ResourceInput,
-    ) -> NewResourceFilter {
+    ) -> Result<NewResourceFilter, Box<dyn Error>> {
         let contract = contract_with_client(signer);
 
         let did_identity = full_did_into_did_identity(did);
@@ -48,9 +50,9 @@ impl DLRRegistry {
             )
             .send()
             .await
-            .unwrap()
+            .map_err(|e| anyhow!(e.to_string()))?
             .await
-            .unwrap()
+            .map_err(|e| anyhow!(e.to_string()))?
             .unwrap();
 
         let resource_update_event = tx
@@ -62,7 +64,7 @@ impl DLRRegistry {
             })
             .unwrap();
 
-        resource_update_event
+        Ok(resource_update_event)
     }
 
     pub async fn get_resource_by_id(
@@ -202,7 +204,8 @@ mod tests {
                     content: "hello world".as_bytes().to_vec(),
                 },
             )
-            .await;
+            .await
+            .unwrap();
 
         dbg!(&resource1);
 
@@ -218,7 +221,8 @@ mod tests {
                     content: "hello world2".as_bytes().to_vec(),
                 },
             )
-            .await;
+            .await
+            .unwrap();
 
         dbg!(&resource2);
 
@@ -234,7 +238,8 @@ mod tests {
                     content: "hello world2".as_bytes().to_vec(),
                 },
             )
-            .await;
+            .await
+            .unwrap();
 
         dbg!(&resource3);
 
