@@ -1,5 +1,5 @@
 pub mod contracts;
-pub mod registar;
+pub mod registrar;
 pub mod resolver;
 pub mod types;
 pub mod utils;
@@ -9,7 +9,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use crate::{
-        contracts::test_utils::get_writer_ethers_client, registar::EthrDidLinkedResourcesRegistar,
+        contracts::test_utils::get_writer_ethers_client, registrar::EthrDidLinkedResourcesRegistrar,
         resolver::EthrDidLinkedResourcesResolver, types::input::ResourceInput,
         utils::did_identity_as_full_did,
     };
@@ -20,7 +20,7 @@ mod tests {
         let did = did_identity_as_full_did(&signer.address());
 
         let resolver = EthrDidLinkedResourcesResolver::new();
-        let registar = EthrDidLinkedResourcesRegistar::new(signer);
+        let registrar = EthrDidLinkedResourcesRegistrar::new(signer);
 
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";
@@ -32,19 +32,19 @@ mod tests {
             content: String::from("hello world").into_bytes(),
             ..Default::default()
         };
-        let created_res1 = registar
+        let created_res1 = registrar
             .create_resource(&did, res_input.clone())
             .await
             .unwrap();
 
         res_input.content = String::from("hello world 2").into_bytes();
-        let created_res2 = registar
+        let created_res2 = registrar
             .create_resource(&did, res_input.clone())
             .await
             .unwrap();
 
         res_input.content = String::from("hello world 3").into_bytes();
-        let created_res3 = registar
+        let created_res3 = registrar
             .create_resource(&did, res_input.clone())
             .await
             .unwrap();

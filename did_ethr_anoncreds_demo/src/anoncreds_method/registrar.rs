@@ -5,7 +5,7 @@ use anoncreds::{
     types::{RevocationRegistryDefinition, RevocationStatusList},
 };
 use did_ethr_linked_resources::{
-    registar::EthrDidLinkedResourcesRegistar,
+    registrar::EthrDidLinkedResourcesRegistrar,
     types::{input::ResourceInput, output::Resource},
 };
 use ethers::providers::Middleware;
@@ -16,22 +16,22 @@ use super::ledger_data_transformer::{
     SCHEMA_RESOURCE_TYPE, STATUS_LIST_RESOURCE_TYPE,
 };
 
-pub struct EthrDidAnoncredsRegistar<S> {
-    dlr_registar: EthrDidLinkedResourcesRegistar<S>,
+pub struct EthrDidAnoncredsRegistrar<S> {
+    dlr_registrar: EthrDidLinkedResourcesRegistrar<S>,
 }
 
-impl<S> EthrDidAnoncredsRegistar<S>
+impl<S> EthrDidAnoncredsRegistrar<S>
 where
     S: Middleware,
 {
     pub fn new(signer: Arc<S>) -> Self {
         Self {
-            dlr_registar: EthrDidLinkedResourcesRegistar::new(signer),
+            dlr_registrar: EthrDidLinkedResourcesRegistrar::new(signer),
         }
     }
 
     pub async fn write_schema(&self, issuer_did: &str, schema: Schema) -> Resource {
-        self.dlr_registar
+        self.dlr_registrar
             .create_resource(
                 &issuer_did,
                 ResourceInput {
@@ -51,7 +51,7 @@ where
         issuer_did: &str,
         cred_def: CredentialDefinition,
     ) -> Resource {
-        self.dlr_registar
+        self.dlr_registrar
             .create_resource(
                 &issuer_did,
                 ResourceInput {
@@ -71,7 +71,7 @@ where
         issuer_did: &str,
         rev_reg_def: RevocationRegistryDefinition,
     ) -> Resource {
-        self.dlr_registar
+        self.dlr_registrar
             .create_resource(
                 &issuer_did,
                 ResourceInput {
@@ -92,7 +92,7 @@ where
         rev_reg_tag: &str,
         rev_list: &RevocationStatusList,
     ) -> Resource {
-        self.dlr_registar
+        self.dlr_registrar
             .create_resource(
                 &issuer_did,
                 ResourceInput {

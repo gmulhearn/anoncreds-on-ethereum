@@ -12,13 +12,13 @@ use anoncreds::{
     },
 };
 use did_ethr_linked_resources::{
-    contracts::eth_did_registry::DidEthRegistry, registar::EthrDidLinkedResourcesRegistar,
+    contracts::eth_did_registry::DidEthRegistry, registrar::EthrDidLinkedResourcesRegistrar,
     types::input::ResourceInput,
 };
 
 use crate::{
     anoncreds_method::{
-        ledger_data_transformer::LedgerDataTransformer, registar::EthrDidAnoncredsRegistar,
+        ledger_data_transformer::LedgerDataTransformer, registrar::EthrDidAnoncredsRegistrar,
     },
     ethers_client::EtherSigner,
     utils::{random_id, serde_clone},
@@ -34,8 +34,8 @@ const CRED_REV_ID: u32 = 1;
 pub struct Issuer {
     pub issuer_did: String,
     pub signer: Arc<EtherSigner>,
-    anoncreds_registar: EthrDidAnoncredsRegistar<EtherSigner>,
-    dlr_registar: EthrDidLinkedResourcesRegistar<EtherSigner>,
+    anoncreds_registrar: EthrDidAnoncredsRegistrar<EtherSigner>,
+    dlr_registrar: EthrDidLinkedResourcesRegistrar<EtherSigner>,
     did_registry: DidEthRegistry,
     demo_data: IssuerDemoData,
 }
@@ -69,8 +69,8 @@ pub enum CredRevocationUpdateType {
 
 impl Issuer {
     pub async fn bootstrap(issuer_did: String, signer: Arc<EtherSigner>) -> Self {
-        let dlr_registar = EthrDidLinkedResourcesRegistar::new(signer.clone());
-        let anoncreds_registar = EthrDidAnoncredsRegistar::new(signer.clone());
+        let dlr_registrar = EthrDidLinkedResourcesRegistrar::new(signer.clone());
+        let anoncreds_registrar = EthrDidAnoncredsRegistrar::new(signer.clone());
 
         let attr_names: &[&str] = &["name", "age"];
 
@@ -86,7 +86,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting schema...");
-        let schema_resource = anoncreds_registar
+        let schema_resource = anoncreds_registrar
             .write_schema(&issuer_did, schema.clone())
             .await;
         let schema_id = schema_resource.resource_uri;
@@ -106,7 +106,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting cred def...");
-        let cred_def_resource = anoncreds_registar
+        let cred_def_resource = anoncreds_registrar
             .write_cred_def(&issuer_did, serde_clone(&cred_def))
             .await;
         let cred_def_id = cred_def_resource.resource_uri;
@@ -128,7 +128,7 @@ impl Issuer {
 
         // upload to ledger
         println!("Issuer: submitting rev reg def...");
-        let rev_reg_def_resource = anoncreds_registar
+        let rev_reg_def_resource = anoncreds_registrar
             .write_rev_reg_def(&issuer_did, rev_reg_def.clone())
             .await;
         let rev_reg_def_id = rev_reg_def_resource.resource_uri;
@@ -143,7 +143,7 @@ impl Issuer {
         )
         .unwrap();
         println!("Issuer: submitting rev list initial entry...");
-        let rev_list_resource = anoncreds_registar
+        let rev_list_resource = anoncreds_registrar
             .write_rev_status_list(&issuer_did, rev_reg_def_tag, &rev_list)
             .await;
         let ledger_timestamp = rev_list_resource.created.timestamp() as u64;
@@ -162,8 +162,8 @@ impl Issuer {
         );
 
         Self {
-            anoncreds_registar,
-            dlr_registar,
+            anoncreds_registrar,
+            dlr_registrar,
             did_registry: DidEthRegistry,
             issuer_did,
             signer,
@@ -199,7 +199,7 @@ impl Issuer {
         &self,
         resource: T,
     ) -> Result<(), Box<dyn Error>> {
-        self.dlr_registar
+        self.dlr_registrar
             .create_resource(
                 &self.issuer_did,
                 ResourceInput {
@@ -285,7 +285,7 @@ impl Issuer {
         .unwrap();
 
         let new_rev_list_resource = self
-            .anoncreds_registar
+            .anoncreds_registrar
             .write_rev_status_list(&self.issuer_did, &self.demo_data.rev_reg_def.tag, &new_list)
             .await;
         let ledger_timestamp = new_rev_list_resource.created.timestamp() as u64;

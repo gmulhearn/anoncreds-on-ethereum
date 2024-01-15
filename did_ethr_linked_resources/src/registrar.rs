@@ -9,13 +9,13 @@ use super::{
     types::{input::ResourceInput, output::Resource},
 };
 
-pub struct EthrDidLinkedResourcesRegistar<S> {
+pub struct EthrDidLinkedResourcesRegistrar<S> {
     registry: EthrDIDLinkedResourcesRegistry,
     resolver: EthrDidLinkedResourcesResolver, // eh - only need this for the metadata node convenience method
     signer: Arc<S>,
 }
 
-impl<S> EthrDidLinkedResourcesRegistar<S>
+impl<S> EthrDidLinkedResourcesRegistrar<S>
 where
     S: Middleware,
 {
