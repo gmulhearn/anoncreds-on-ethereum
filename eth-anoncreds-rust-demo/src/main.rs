@@ -1,7 +1,8 @@
-pub mod ledger;
+pub mod anoncreds_method;
 pub mod roles;
 pub mod utils;
 
+use did_ethr_linked_resources::utils::did_identity_as_full_did;
 use serde_json::json;
 use std::{
     io::{self, BufRead, Write},
@@ -10,9 +11,9 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
-    ledger::{
-        contracts::get_writer_ethers_client, did_parsing_helpers::did_identity_as_full_did,
-        ledger_data::json_ledger_data_transformer::JsonLedgerData,
+    anoncreds_method::{
+        ethers_client::get_writer_ethers_client,
+        ledger_data_transformer::json_ledger_data_transformer::JsonLedgerData,
     },
     roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
     utils::get_epoch_secs,

@@ -4,15 +4,12 @@ use dotenv::dotenv;
 use ethers::{
     core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
+    providers::{Http, Provider},
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
 
-pub mod eth_did_registry;
-pub mod ethr_dlr_registry;
-
 // Ethereum RPC of the network to use (defaults to the hardhat local network)
-pub const REGISTRY_RPC: &str = "http://localhost:8545";
+const REGISTRY_RPC: &str = "http://localhost:8545";
 
 pub type EtherSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
@@ -31,9 +28,4 @@ pub fn get_writer_ethers_client(id: u32) -> Arc<EtherSigner> {
 
     let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
     Arc::new(SignerMiddleware::new(provider, wallet))
-}
-
-pub fn get_read_only_ethers_client() -> Arc<impl Middleware> {
-    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
-    Arc::new(provider)
 }

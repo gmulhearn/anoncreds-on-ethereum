@@ -2,12 +2,12 @@ use std::error::Error;
 
 use chrono::Utc;
 
-use crate::ledger::{
+use crate::{
     contracts::ethr_dlr_registry::{
         DLRRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
-    did_parsing_helpers::did_identity_as_full_did,
-    did_linked_resources::types::query::ResourceQuery,
+    types::query::ResourceQuery,
+    utils::did_identity_as_full_did,
 };
 
 use super::types::output::Resource;
@@ -92,10 +92,10 @@ impl EthrDidLinkedResourcesResolver {
 
 #[cfg(test)]
 mod tests {
-    use crate::ledger::{
-        contracts::{ethr_dlr_registry::DLRRegistry, get_writer_ethers_client},
-        did_parsing_helpers::did_identity_as_full_did,
-        did_linked_resources::types::input::ResourceInput,
+    use crate::{
+        contracts::{ethr_dlr_registry::DLRRegistry, test_utils::get_writer_ethers_client},
+        types::input::ResourceInput,
+        utils::did_identity_as_full_did,
     };
 
     #[tokio::test]

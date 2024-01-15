@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::{abi::Address, providers::Middleware, types::H160};
 
-use crate::ledger::did_parsing_helpers::full_did_into_did_identity;
+use crate::utils::full_did_into_did_identity;
 
 // Include generated contract types from build script
 include!(concat!(

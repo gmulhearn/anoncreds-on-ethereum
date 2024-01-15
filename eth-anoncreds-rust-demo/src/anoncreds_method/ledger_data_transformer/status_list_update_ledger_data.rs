@@ -1,9 +1,8 @@
 use anoncreds::data_types::{issuer_id::IssuerId, rev_status_list::serde_revocation_list};
 use bitvec::vec::BitVec;
+use did_ethr_linked_resources::utils::extract_did_of_dlr_resource_uri;
 use serde_json::{json, Value};
 use ursa::pair::PointG2;
-
-use crate::ledger::did_parsing_helpers::extract_did_of_dlr_resource_uri;
 
 use super::LedgerDataTransformer;
 

@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ethers::providers::Middleware;
 
-use crate::ledger::contracts::ethr_dlr_registry::DLRRegistry;
+use crate::contracts::ethr_dlr_registry::DLRRegistry;
 
 use super::{
     resolver::EthrDidLinkedResourcesResolver,

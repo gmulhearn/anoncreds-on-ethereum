@@ -6,7 +6,7 @@ use chrono::DateTime;
 /// https://wiki.trustoverip.org/display/HOME/DID-Linked+Resources+Specification
 #[derive(Clone, Debug, PartialEq)]
 pub struct Resource {
-    // TODO - content isn't really apart of the Resource properties. 
+    // TODO - content isn't really apart of the Resource properties.
     // May need to differentiate between Resource and ResourceContent
     pub content: Vec<u8>,
     /// A string or a map that conforms to the rules of [RFC3986] for URIs which SHOULD directly lead to a location where the resource can be accessed from.

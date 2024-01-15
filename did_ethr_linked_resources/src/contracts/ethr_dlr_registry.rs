@@ -5,8 +5,8 @@ use ethers::contract::EthEvent;
 use ethers::types::H160;
 use ethers::{abi::Address, providers::Middleware, types::U256};
 
-use crate::ledger::did_parsing_helpers::full_did_into_did_identity;
-use crate::ledger::did_linked_resources::types::input::ResourceInput;
+use crate::types::input::ResourceInput;
+use crate::utils::full_did_into_did_identity;
 
 use super::get_read_only_ethers_client;
 
@@ -172,9 +172,10 @@ impl DLRRegistry {
 
 #[cfg(test)]
 mod tests {
-    use crate::ledger::{
-        contracts::get_writer_ethers_client, did_parsing_helpers::did_identity_as_full_did,
-        did_linked_resources::types::input::ResourceInput,
+
+    use crate::{
+        contracts::test_utils::get_writer_ethers_client, types::input::ResourceInput,
+        utils::did_identity_as_full_did,
     };
 
     use super::DLRRegistry;

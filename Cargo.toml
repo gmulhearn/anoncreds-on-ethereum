@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 
-members = ["eth-anoncreds-rust-demo"]
+members = ["did_ethr_linked_resources", "eth-anoncreds-rust-demo"]

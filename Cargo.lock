@@ -602,6 +602,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "did_ethr_linked_resources"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dotenv",
+ "ethers",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+ "urlencoding",
+ "uuid 1.6.1",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,6 +803,7 @@ dependencies = [
  "anyhow",
  "bitvec",
  "chrono",
+ "did_ethr_linked_resources",
  "dotenv",
  "ethers",
  "hex",
