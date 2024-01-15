@@ -5,7 +5,7 @@ use ethers::contract::EthEvent;
 use ethers::types::H160;
 use ethers::{abi::Address, providers::Middleware, types::U256};
 
-use crate::ledger::did_linked_resource_id::full_did_into_did_identity;
+use crate::ledger::did_parsing_helpers::full_did_into_did_identity;
 use crate::ledger::did_linked_resources::types::input::ResourceInput;
 
 use super::get_read_only_ethers_client;
@@ -72,7 +72,6 @@ impl DLRRegistry {
     ) -> Option<NewResourceFilter> {
         let did_identity = full_did_into_did_identity(did);
         let resource_id = U256::from_dec_str(resource_id).unwrap();
-        // let resource_id = resource_id.parse::<U256>().unwrap();
 
         self.get_resource_by_id_raw(did_identity, resource_id).await
     }
@@ -174,7 +173,7 @@ impl DLRRegistry {
 #[cfg(test)]
 mod tests {
     use crate::ledger::{
-        contracts::get_writer_ethers_client, did_linked_resource_id::did_identity_as_full_did,
+        contracts::get_writer_ethers_client, did_parsing_helpers::did_identity_as_full_did,
         did_linked_resources::types::input::ResourceInput,
     };
 

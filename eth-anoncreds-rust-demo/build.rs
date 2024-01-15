@@ -4,20 +4,7 @@ use std::{env, path::Path};
 fn main() {
     let out_dir = env::var_os("OUT_DIR").unwrap();
 
-    let abi_source = "../smart-contracts/artifacts/contracts/EthrDIDLinkedResourcesRegistry.sol/EthrDIDLinkedResourcesRegistry.json";
-    let out_file = Path::new(&out_dir).join("ethr_did_linked_resources_registry_contract.rs");
-    if out_file.exists() {
-        std::fs::remove_file(&out_file).unwrap();
-    }
-
-    Abigen::new("EthrDIDLinkedResourcesRegistry", abi_source)
-        .unwrap()
-        .generate()
-        .unwrap()
-        .write_to_file(out_file)
-        .unwrap();
-
-    // repeat for ethereum did registry
+    // gen types for ethereum did registry
 
     let abi_source =
         "../smart-contracts/artifacts/contracts/EthereumDIDRegistry.sol/EthereumDIDRegistry.json";
@@ -33,7 +20,7 @@ fn main() {
         .write_to_file(out_file)
         .unwrap();
 
-    // repeat for EthrDLRRegistry.sol
+    // gen types for EthrDLRRegistry.sol
 
     let abi_source =
         "../smart-contracts/artifacts/contracts/EthrDLRRegistry.sol/EthrDLRRegistry.json";

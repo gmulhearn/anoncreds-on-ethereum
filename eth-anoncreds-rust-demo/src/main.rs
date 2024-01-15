@@ -11,7 +11,7 @@ use tokio::time::sleep;
 
 use crate::{
     ledger::{
-        contracts::get_writer_ethers_client, did_linked_resource_id::did_identity_as_full_did,
+        contracts::get_writer_ethers_client, did_parsing_helpers::did_identity_as_full_did,
         ledger_data::json_ledger_data_transformer::JsonLedgerData,
     },
     roles::{CredRevocationUpdateType, Holder, Issuer, Verifier},
@@ -39,7 +39,7 @@ async fn full_demo() {
     prompt_input_to_continue();
 
     // auth control demo
-    did_controller_auth_demo(&mut issuer).await;
+    // did_controller_auth_demo(&mut issuer).await;
     prompt_input_to_continue();
 
     // issue the cred to the holder

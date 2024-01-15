@@ -37,7 +37,10 @@ mod helper {
                 x => Some(x.to_owned()),
             };
 
+            let content = ledger_resource.content.to_vec();
+
             Resource {
+                content,
                 resource_uri,
                 resource_type: ledger_res_meta.resource_type,
                 resource_name: ledger_res_meta.resource_name,
@@ -47,8 +50,8 @@ mod helper {
                 media_type: ledger_res_meta.media_type,
                 created: Utc.timestamp_opt(created_epoch as i64, 0).unwrap(),
                 checksum: None,
-                previous_version_id: previous_version_id,
-                next_version_id: next_version_id,
+                previous_version_id,
+                next_version_id,
             }
         }
     }
@@ -60,7 +63,7 @@ mod tests {
 
     use crate::ledger::{
         contracts::get_writer_ethers_client,
-        did_linked_resource_id::did_identity_as_full_did,
+        did_parsing_helpers::did_identity_as_full_did,
         did_linked_resources::{
             registar::EthrDidLinkedResourcesRegistar, resolver::EthrDidLinkedResourcesResolver,
             types::input::ResourceInput,
@@ -74,6 +77,7 @@ mod tests {
 
         let resolver = EthrDidLinkedResourcesResolver::new();
         let registar = EthrDidLinkedResourcesRegistar::new(signer);
+
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";
 

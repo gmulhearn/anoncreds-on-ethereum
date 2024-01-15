@@ -6,7 +6,7 @@ use crate::ledger::{
     contracts::ethr_dlr_registry::{
         DLRRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
-    did_linked_resource_id::did_identity_as_full_did,
+    did_parsing_helpers::did_identity_as_full_did,
     did_linked_resources::types::query::ResourceQuery,
 };
 
@@ -94,7 +94,7 @@ impl EthrDidLinkedResourcesResolver {
 mod tests {
     use crate::ledger::{
         contracts::{ethr_dlr_registry::DLRRegistry, get_writer_ethers_client},
-        did_linked_resource_id::did_identity_as_full_did,
+        did_parsing_helpers::did_identity_as_full_did,
         did_linked_resources::types::input::ResourceInput,
     };
 
@@ -105,7 +105,6 @@ mod tests {
         let resource_type = "bar";
 
         // create resource
-        // TODO - use registar
         let signer = get_writer_ethers_client(0);
         let did = did_identity_as_full_did(&signer.address());
 
