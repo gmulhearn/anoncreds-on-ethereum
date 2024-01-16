@@ -6,9 +6,6 @@ DID Linked Resources can be used for many applications, however this project dem
 # Implementation
 TODO
 
-## did:ethr Controller Authentication
-TODO
-
 # TODO
 
 # Demo
