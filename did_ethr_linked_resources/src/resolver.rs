@@ -6,11 +6,9 @@ use crate::{
     contracts::ethr_dlr_registry::{
         EthrDIDLinkedResourcesRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
-    types::query::ResourceQuery,
+    types::{output::Resource, query::ResourceQuery},
     utils::did_identity_as_full_did,
 };
-
-use super::types::output::Resource;
 
 pub struct EthrDidLinkedResourcesResolver {
     registry: EthrDIDLinkedResourcesRegistry,

@@ -65,7 +65,7 @@ impl EthrDidAnoncredsResolver {
         println!("Fetching status list with query: {query}");
         let resource = self.dlr_resolver.resolve_query(&query).await.unwrap();
 
-        let resource_timestamp = resource.created.timestamp() as u64;
+        let resource_timestamp = resource.metadata.created.timestamp() as u64;
         let rev_list_ledger_data: StatusListUpdateLedgerData =
             LedgerDataTransformer::from_ledger_bytes(&resource.content);
 

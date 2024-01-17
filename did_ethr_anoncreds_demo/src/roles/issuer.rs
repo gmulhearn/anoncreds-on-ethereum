@@ -89,7 +89,7 @@ impl Issuer {
         let schema_resource = anoncreds_registrar
             .write_schema(&issuer_did, schema.clone())
             .await;
-        let schema_id = schema_resource.resource_uri;
+        let schema_id = schema_resource.metadata.resource_uri;
 
         let cred_def_tag = "MyCredDef";
         println!("Issuer: creating cred def for tag: {cred_def_tag}...");
@@ -109,7 +109,7 @@ impl Issuer {
         let cred_def_resource = anoncreds_registrar
             .write_cred_def(&issuer_did, serde_clone(&cred_def))
             .await;
-        let cred_def_id = cred_def_resource.resource_uri;
+        let cred_def_id = cred_def_resource.metadata.resource_uri;
 
         let rev_reg_def_tag = "MyRevRegDef";
         println!("Issuer: creating rev reg def for tag: {rev_reg_def_tag}...");
@@ -131,7 +131,7 @@ impl Issuer {
         let rev_reg_def_resource = anoncreds_registrar
             .write_rev_reg_def(&issuer_did, rev_reg_def.clone())
             .await;
-        let rev_reg_def_id = rev_reg_def_resource.resource_uri;
+        let rev_reg_def_id = rev_reg_def_resource.metadata.resource_uri;
 
         println!("Issuer: creating rev list...");
         let rev_list = anoncreds::issuer::create_revocation_status_list(
@@ -146,7 +146,7 @@ impl Issuer {
         let rev_list_resource = anoncreds_registrar
             .write_rev_status_list(&issuer_did, rev_reg_def_tag, &rev_list)
             .await;
-        let ledger_timestamp = rev_list_resource.created.timestamp() as u64;
+        let ledger_timestamp = rev_list_resource.metadata.created.timestamp() as u64;
 
         println!("Issuer: submitted rev list initial entry at ledger time: {ledger_timestamp:?}");
         let rev_list = anoncreds::issuer::update_revocation_status_list_timestamp_only(
@@ -288,7 +288,7 @@ impl Issuer {
             .anoncreds_registrar
             .write_rev_status_list(&self.issuer_did, &self.demo_data.rev_reg_def.tag, &new_list)
             .await;
-        let ledger_timestamp = new_rev_list_resource.created.timestamp() as u64;
+        let ledger_timestamp = new_rev_list_resource.metadata.created.timestamp() as u64;
 
         println!("Issuer: submitted rev list update entry at ledger time: {ledger_timestamp:?}");
 

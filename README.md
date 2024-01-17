@@ -1,11 +1,12 @@
-# DID Linked Resources for `did:ethr` + Application in Anoncreds
+# `did:ethr` Linked Resources + `did:ethr` Anoncreds Method + Demo
+This project implements the following:
+* [DID Linked Resources for did:ethr](./did_ethr_linked_resources/README.md)
+* [Anoncreds Method for did:ethr](./did_ethr_anoncreds/README.md)
+* [Full-flow Demo of Anoncreds Method](./did_ethr_anoncreds_demo)
+
 This project defines an extension on the `did:ethr` method to support creation and retrieval of resources which are verifiably controlled by the given `did:ethr` DID (_DID Linked Resources_).
 
 DID Linked Resources can be used for many applications, however this project demonstrates how these resources can be used in an [Anoncreds](https://hyperledger.github.io/anoncreds-spec/) use case. This includes a full-flow Issuer/Holder/Verifier demo (with revocation support).
-
-Each crate contains README's with more documentation:
-* [did:ethr DID Linked Resources](./did_ethr_linked_resources/README.md)
-* [did:ethr Anoncreds Method](./did_ethr_anoncreds/README.md)
 
 # Demo
 The demo within the Rust crate walks thru the following:

@@ -3,7 +3,7 @@ use ethers::types::H160;
 
 use crate::{
     contracts::ethr_dlr_registry::{NewResourceFilter, ResourceVersionMetadataChainNode},
-    types::output::Resource,
+    types::output::{Resource, ResourceMetadata},
 };
 
 const ETHR_DID_SUB_METHOD: &str = "local";
@@ -54,17 +54,19 @@ impl From<(NewResourceFilter, ResourceVersionMetadataChainNode)> for Resource {
 
         Resource {
             content,
-            resource_uri,
-            resource_type: ledger_res_meta.resource_type,
-            resource_name: ledger_res_meta.resource_name,
-            resource_id: Some(ledger_resource.resource_id.to_string()),
-            resource_collection_id: Some(format!("{did_identity:?}")),
-            resource_version_id: Some(ledger_res_meta.resource_version),
-            media_type: ledger_res_meta.media_type,
-            created: Utc.timestamp_opt(created_epoch as i64, 0).unwrap(),
-            checksum: None,
-            previous_version_id,
-            next_version_id,
+            metadata: ResourceMetadata {
+                resource_uri,
+                resource_type: ledger_res_meta.resource_type,
+                resource_name: ledger_res_meta.resource_name,
+                resource_id: Some(ledger_resource.resource_id.to_string()),
+                resource_collection_id: Some(format!("{did_identity:?}")),
+                resource_version_id: Some(ledger_res_meta.resource_version),
+                media_type: ledger_res_meta.media_type,
+                created: Utc.timestamp_opt(created_epoch as i64, 0).unwrap(),
+                checksum: None,
+                previous_version_id,
+                next_version_id,
+            },
         }
     }
 }

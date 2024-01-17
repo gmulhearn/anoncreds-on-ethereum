@@ -2,12 +2,11 @@ use std::{error::Error, sync::Arc};
 
 use ethers::providers::Middleware;
 
-use crate::contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry;
-
-use super::{
-    resolver::EthrDidLinkedResourcesResolver,
-    types::{input::ResourceInput, output::Resource},
+use crate::{
+    contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, types::output::Resource,
 };
+
+use super::{resolver::EthrDidLinkedResourcesResolver, types::input::ResourceInput};
 
 pub struct EthrDidLinkedResourcesRegistrar<S> {
     registry: EthrDIDLinkedResourcesRegistry,

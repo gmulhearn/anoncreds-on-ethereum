@@ -51,15 +51,15 @@ mod tests {
 
         // resolve exact
         let resolved_res = resolver
-            .resolve_query(&created_res2.resource_uri)
+            .resolve_query(&created_res2.metadata.resource_uri)
             .await
             .unwrap();
 
         dbg!(resolved_res);
 
         // resolve over time range
-        let epoch_range =
-            created_res1.created.timestamp() - 4..created_res3.created.timestamp() + 4;
+        let epoch_range = created_res1.metadata.created.timestamp() - 4
+            ..created_res3.metadata.created.timestamp() + 4;
         for epoch in epoch_range.step_by(2) {
             // get time as DateTime string
             let datetime = Utc.timestamp_opt(epoch, 0).unwrap();
