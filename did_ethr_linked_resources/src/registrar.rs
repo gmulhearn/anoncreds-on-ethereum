@@ -3,7 +3,8 @@ use std::{error::Error, sync::Arc};
 use ethers::providers::Middleware;
 
 use crate::{
-    config::ContractNetworkConfig, contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry,
+    config::{ContractNetworkConfig, DidEthrSubMethod},
+    contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry,
     types::output::Resource,
 };
 
@@ -13,6 +14,7 @@ pub struct EthrDidLinkedResourcesRegistrar<S> {
     registry: EthrDIDLinkedResourcesRegistry,
     resolver: EthrDidLinkedResourcesResolver, // eh - only need this for the metadata node convenience method
     signer: Arc<S>,
+    did_ethr_sub_method: DidEthrSubMethod,
 }
 
 impl<S> EthrDidLinkedResourcesRegistrar<S>
@@ -21,6 +23,7 @@ where
 {
     pub fn new(signer: Arc<S>, config: ContractNetworkConfig) -> Self {
         Self {
+            did_ethr_sub_method: config.did_ethr_sub_method.clone(),
             registry: EthrDIDLinkedResourcesRegistry::new(config.clone()),
             resolver: EthrDidLinkedResourcesResolver::new(config),
             signer,
@@ -42,6 +45,10 @@ where
             .resolve_metadata_chain_node_for_event(&resource)
             .await;
 
-        Ok(Resource::from((resource, metadata_node)))
+        Ok(Resource::from((
+            resource,
+            metadata_node,
+            &self.did_ethr_sub_method,
+        )))
     }
 }

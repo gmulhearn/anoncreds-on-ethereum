@@ -34,7 +34,7 @@ async fn full_demo() {
 
     // ------ SETUP ISSUER DID ------
     let initial_signer = get_writer_ethers_client(0, &conf);
-    let issuer_did = did_identity_as_full_did(&initial_signer.address());
+    let issuer_did = did_identity_as_full_did(&initial_signer.address(), &conf.did_ethr_sub_method);
 
     // ------ SETUP DEMO AGENTS ------
     println!("Holder: setting up...");

@@ -2,16 +2,20 @@ use chrono::{TimeZone, Utc};
 use ethers::types::H160;
 
 use crate::{
+    config::DidEthrSubMethod,
     contracts::ethr_dlr_registry::{NewResourceFilter, ResourceVersionMetadataChainNode},
     types::output::{Resource, ResourceMetadata},
 };
 
-const ETHR_DID_SUB_METHOD: &str = "local";
-
-pub fn did_identity_as_full_did(address: &H160) -> String {
+/// sub method should be the hex string chain ID of the network, or a known "name":
+/// https://github.com/uport-project/ethr-did-registry#contract-deployments
+pub fn did_identity_as_full_did(address: &H160, sub_method: &DidEthrSubMethod) -> String {
     // note that debug fmt of address is the '0x..' hex encoding.
     // where as .to_string() (fmt) truncates it
-    format!("did:ethr:{ETHR_DID_SUB_METHOD}:{address:?}")
+    format!(
+        "did:ethr:{sub_method}:{address:?}",
+        sub_method = sub_method.0
+    )
 }
 
 pub fn full_did_into_did_identity(did: &str) -> H160 {
@@ -26,13 +30,25 @@ pub fn extract_did_of_dlr_resource_uri(resource_uri: &str) -> String {
     resource_uri.split("/resources").next().unwrap().to_owned()
 }
 
-impl From<(NewResourceFilter, ResourceVersionMetadataChainNode)> for Resource {
-    fn from((event, metadata_node): (NewResourceFilter, ResourceVersionMetadataChainNode)) -> Self {
+impl
+    From<(
+        NewResourceFilter,
+        ResourceVersionMetadataChainNode,
+        &DidEthrSubMethod,
+    )> for Resource
+{
+    fn from(
+        (event, metadata_node, sub_method): (
+            NewResourceFilter,
+            ResourceVersionMetadataChainNode,
+            &DidEthrSubMethod,
+        ),
+    ) -> Self {
         let ledger_resource = event.resource;
         let ledger_res_meta = ledger_resource.metadata;
 
         let did_identity = event.did_identity;
-        let did = did_identity_as_full_did(&did_identity);
+        let did = did_identity_as_full_did(&did_identity, sub_method);
 
         let resource_uri = format!(
             "{did}/resources/{resource_id}",
@@ -80,6 +96,7 @@ pub mod thegraph {
     use ethers::types::{H160, U256};
 
     use crate::{
+        config::DidEthrSubMethod,
         contracts::ethr_dlr_registry::ResourceVersionMetadataChainNode,
         subgraph::query::ResourceForNameAndTypeAtTimestampQueryResult,
         types::output::{Resource, ResourceMetadata},
@@ -91,15 +108,18 @@ pub mod thegraph {
         From<(
             ResourceForNameAndTypeAtTimestampQueryResult,
             ResourceVersionMetadataChainNode,
+            &DidEthrSubMethod,
         )> for Resource
     {
         fn from(
-            (event, metadata_node): (
+            (event, metadata_node, sub_method): (
                 ResourceForNameAndTypeAtTimestampQueryResult,
                 ResourceVersionMetadataChainNode,
+                &DidEthrSubMethod,
             ),
         ) -> Self {
-            let did = did_identity_as_full_did(&H160::from_str(&event.did_identity).unwrap());
+            let did =
+                did_identity_as_full_did(&H160::from_str(&event.did_identity).unwrap(), sub_method);
             let resource_uri = format!(
                 "{did}/resources/{resource_id}",
                 resource_id = event.resource_id

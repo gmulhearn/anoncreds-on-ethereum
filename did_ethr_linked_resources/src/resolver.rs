@@ -4,7 +4,7 @@ use chrono::Utc;
 use ethers::types::U256;
 
 use crate::{
-    config::ContractNetworkConfig,
+    config::{ContractNetworkConfig, DidEthrSubMethod},
     contracts::ethr_dlr_registry::{
         EthrDIDLinkedResourcesRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
@@ -17,11 +17,13 @@ use crate::subgraph::{self};
 
 pub struct EthrDidLinkedResourcesResolver {
     registry: EthrDIDLinkedResourcesRegistry,
+    did_ethr_sub_method: DidEthrSubMethod,
 }
 
 impl EthrDidLinkedResourcesResolver {
     pub fn new(config: ContractNetworkConfig) -> Self {
         Self {
+            did_ethr_sub_method: config.did_ethr_sub_method.clone(),
             registry: EthrDIDLinkedResourcesRegistry::new(config),
         }
     }
@@ -32,7 +34,7 @@ impl EthrDidLinkedResourcesResolver {
     pub async fn resolve_query(&self, query: &str) -> Result<Resource, Box<dyn Error>> {
         let query = ResourceQuery::parse_from_str(query)?;
         let did_id = query.did_identity;
-        let did = did_identity_as_full_did(&did_id);
+        let did = did_identity_as_full_did(&did_id, &self.did_ethr_sub_method);
         let params = query.parameters;
 
         if let Some(resource_id) = params.resource_id {
@@ -41,7 +43,11 @@ impl EthrDidLinkedResourcesResolver {
                 return Err("Not Found".into());
             };
             let metadata_node = self.resolve_metadata_chain_node_for_event(&resource).await;
-            return Ok(Resource::from((resource, metadata_node)));
+            return Ok(Resource::from((
+                resource,
+                metadata_node,
+                &self.did_ethr_sub_method,
+            )));
         }
 
         if params.all_resource_versions.is_some()
@@ -113,7 +119,11 @@ impl EthrDidLinkedResourcesResolver {
             .registry
             .get_resource_by_name_and_type_at_epoch(did, resource_name, resource_type, epoch as u64)
             .await?;
-        Some(Resource::from((resource, metadata_node)))
+        Some(Resource::from((
+            resource,
+            metadata_node,
+            &self.did_ethr_sub_method,
+        )))
     }
 
     #[cfg(feature = "thegraph")]
@@ -148,7 +158,11 @@ impl EthrDidLinkedResourcesResolver {
             )
             .await;
 
-        Some(Resource::from((graph_resource, metadata_node)))
+        Some(Resource::from((
+            graph_resource,
+            metadata_node,
+            &self.did_ethr_sub_method,
+        )))
     }
 
     pub(super) async fn resolve_metadata_chain_node_for_event(
@@ -157,7 +171,7 @@ impl EthrDidLinkedResourcesResolver {
     ) -> ResourceVersionMetadataChainNode {
         self.registry
             .get_resource_metadata_chain_node(
-                &did_identity_as_full_did(&event.did_identity),
+                &did_identity_as_full_did(&event.did_identity, &self.did_ethr_sub_method),
                 &event.resource.metadata.resource_name,
                 &event.resource.metadata.resource_type,
                 event.resource.metadata.metadata_chain_node_index.as_u64(),
@@ -187,7 +201,7 @@ mod tests {
 
         // create resource
         let signer = get_writer_ethers_client(0, &conf);
-        let did = did_identity_as_full_did(&signer.address());
+        let did = did_identity_as_full_did(&signer.address(), &conf.did_ethr_sub_method);
 
         let registry = EthrDIDLinkedResourcesRegistry::new(conf.get_dlr_network_config());
 
