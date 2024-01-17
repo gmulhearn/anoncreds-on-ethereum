@@ -629,20 +629,13 @@ version = "0.1.0"
 dependencies = [
  "anoncreds",
  "anyhow",
- "bitvec",
- "chrono",
  "did_ethr_anoncreds",
  "did_ethr_linked_resources",
  "dotenv",
  "ethers",
- "hex",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "url",
- "urlencoding",
- "ursa",
  "uuid 1.6.1",
 ]
 
