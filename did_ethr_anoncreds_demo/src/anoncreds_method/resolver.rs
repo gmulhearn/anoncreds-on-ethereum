@@ -24,21 +24,21 @@ impl EthrDidAnoncredsResolver {
 
     pub async fn fetch_schema(&self, schema_id: &str) -> Schema {
         // fetch schema from ledger
-        println!("Holder: fetching schema...");
+        println!("Fetching schema {schema_id}...");
         let resource = self.dlr_resolver.resolve_query(schema_id).await.unwrap();
         LedgerDataTransformer::from_ledger_bytes(&resource.content)
     }
 
     pub async fn fetch_cred_def(&self, cred_def_id: &str) -> CredentialDefinition {
         // fetch cred def from ledger
-        println!("Holder: fetching cred def...");
+        println!("Fetching cred def {cred_def_id}...");
         let resource = self.dlr_resolver.resolve_query(cred_def_id).await.unwrap();
         LedgerDataTransformer::from_ledger_bytes(&resource.content)
     }
 
     pub async fn fetch_rev_reg_def(&self, rev_reg_def_id: &str) -> RevocationRegistryDefinition {
         // fetch rev reg def from ledger
-        println!("Holder: fetching rev reg def...");
+        println!("Fetching rev reg def {rev_reg_def_id}...");
         let resource = self
             .dlr_resolver
             .resolve_query(rev_reg_def_id)
@@ -62,6 +62,7 @@ impl EthrDidAnoncredsResolver {
         // did:cheqd:mainnet:zF7rhDBfUt9d1gJPjx7s1J?universityDegree&resourceType=anonCredsStatusList&versionTime=2022-08-21T08:40:00Z
         // NOTE ^ i think above is missing resourceName=universityDegree
         let query = format!("{issuer_did}?resourceName={rev_reg_name}&resourceType={STATUS_LIST_RESOURCE_TYPE}&versionTime={version_time_url}");
+        println!("Fetching status list with query: {query}");
         let resource = self.dlr_resolver.resolve_query(&query).await.unwrap();
 
         let resource_timestamp = resource.created.timestamp() as u64;

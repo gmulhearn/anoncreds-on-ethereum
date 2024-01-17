@@ -12,7 +12,7 @@ For instance:
 ```
 
 ### Schema
-#### Resource Content
+#### Resource Content 
 The data should be stored as **bytes** of the JSON serialized Schema object as described in the [anoncreds spec](https://hyperledger.github.io/anoncreds-spec/).
 ```json
 {
@@ -104,8 +104,8 @@ To assemble the resource content & metadata back into the Revocation Registry De
 #### Resource Content
 The data should be stored as the following **bytes** from the Revocation Registry Status List object described in the [anoncreds spec](https://hyperledger.github.io/anoncreds-spec/).
 ```
-[ accumulator (PointG2 bytes) (128 bytes) ]
-[ statusListBits (see below) (remaining bytes) ]
+| accumulator (PointG2 bytes) | (128 bytes)
+| statusListBits (see below)  | (remaining bytes)
 ```
 `statusListBits` should be the revocation list as a bit array, encoded into bytes. Where a `1` bit indicates the index of a revoked credential for the given revocation registry definiton (and `0` == non-revoked). 
 
