@@ -5,11 +5,11 @@ edition = "2021"
 
 [features]
 # enable feature to use local subgraph queries
-thegraph = []
+thegraph = ["did_ethr_anoncreds/thegraph", "did_ethr_linked_resources/thegraph"]
 
 [dependencies]
-did_ethr_linked_resources = { path = "../did_ethr_linked_resources" }
 did_ethr_anoncreds = { path = "../did_ethr_anoncreds" }
+did_ethr_linked_resources = { path = "../did_ethr_linked_resources" }
 serde = "1"
 serde_json = "1"
 anoncreds = { git = "https://github.com/hyperledger/anoncreds-rs.git", tag = "v0.1.0" }

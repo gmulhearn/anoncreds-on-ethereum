@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+# enable feature to use local subgraph queries
+thegraph = []
+
 [dependencies]
 serde = "1"
 serde_json = "1"

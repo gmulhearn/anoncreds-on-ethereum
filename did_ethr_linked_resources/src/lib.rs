@@ -1,6 +1,7 @@
 pub mod contracts;
 pub mod registrar;
 pub mod resolver;
+mod subgraph;
 pub mod types;
 pub mod utils;
 

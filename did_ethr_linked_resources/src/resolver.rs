@@ -1,11 +1,13 @@
 use std::error::Error;
 
 use chrono::Utc;
+use ethers::types::U256;
 
 use crate::{
     contracts::ethr_dlr_registry::{
         EthrDIDLinkedResourcesRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
+    subgraph::{self},
     types::{output::Resource, query::ResourceQuery},
     utils::did_identity_as_full_did,
 };
@@ -59,18 +61,90 @@ impl EthrDidLinkedResourcesResolver {
         };
 
         // resolve as a resource (known by name+type) at an epoch
+        self.resolve_resource_by_name_and_type_at_epoch(
+            &did,
+            &resource_name,
+            &resource_type,
+            version_time.timestamp() as i64,
+        )
+        .await
+        .ok_or("Not found".into())
+    }
+
+    #[allow(unreachable_code)]
+    async fn resolve_resource_by_name_and_type_at_epoch(
+        &self,
+        did: &str,
+        resource_name: &str,
+        resource_type: &str,
+        epoch: i64,
+    ) -> Option<Resource> {
+        #[cfg(feature = "thegraph")]
+        return self
+            .resolve_resource_by_name_and_type_at_epoch_via_subgraph(
+                did,
+                resource_name,
+                resource_type,
+                epoch,
+            )
+            .await;
+
+        return self
+            .resolve_resource_by_name_and_type_at_epoch_via_pure_eth(
+                did,
+                resource_name,
+                resource_type,
+                epoch,
+            )
+            .await;
+    }
+
+    async fn resolve_resource_by_name_and_type_at_epoch_via_pure_eth(
+        &self,
+        did: &str,
+        resource_name: &str,
+        resource_type: &str,
+        epoch: i64,
+    ) -> Option<Resource> {
         let (resource, metadata_node) = self
             .registry
-            .get_resource_by_name_and_type_at_epoch(
-                &did,
-                &resource_name,
-                &resource_type,
-                version_time.timestamp() as u64,
-            )
-            .await
-            .ok_or("Not found")?;
+            .get_resource_by_name_and_type_at_epoch(did, resource_name, resource_type, epoch as u64)
+            .await?;
+        Some(Resource::from((resource, metadata_node)))
+    }
 
-        Ok(Resource::from((resource, metadata_node)))
+    async fn resolve_resource_by_name_and_type_at_epoch_via_subgraph(
+        &self,
+        did: &str,
+        resource_name: &str,
+        resource_type: &str,
+        epoch: i64,
+    ) -> Option<Resource> {
+        let graph_resource = subgraph::query::get_resource_event_most_recent_to(
+            did,
+            resource_name,
+            resource_type,
+            epoch as u64,
+        )
+        .await;
+
+        let Some(graph_resource) = graph_resource else {
+            return None;
+        };
+
+        let metadata_node = self
+            .registry
+            .get_resource_metadata_chain_node(
+                did,
+                resource_name,
+                resource_type,
+                U256::from_dec_str(&graph_resource.metadata_chain_node_index)
+                    .unwrap()
+                    .as_u64(),
+            )
+            .await;
+
+        Some(Resource::from((graph_resource, metadata_node)))
     }
 
     pub(super) async fn resolve_metadata_chain_node_for_event(

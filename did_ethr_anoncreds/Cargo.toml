@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 # enable feature to use local subgraph queries
-thegraph = []
+thegraph = ["did_ethr_linked_resources/thegraph"]
 
 [dependencies]
 did_ethr_linked_resources = { path = "../did_ethr_linked_resources" }

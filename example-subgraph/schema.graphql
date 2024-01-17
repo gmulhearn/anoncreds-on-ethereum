@@ -1,21 +1,13 @@
-type ImmutableResourceCreatedEvent @entity(immutable: true) {
+type NewResource @entity(immutable: true) {
   id: Bytes!
+  content: Bytes!
   didIdentity: Bytes! # address
-  name: String! # string
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type MutableResourceUpdatedEvent @entity(immutable: true) {
-  id: Bytes!
-  didIdentity: Bytes! # address
-  name: String! # string
-  resource_content: Bytes!
-  resource_metadata_blockTimestamp: BigInt! # uint40
-  resource_metadata_blockNumber: BigInt! # uint64
-  resource_previousMetadata_blockTimestamp: BigInt! # uint40
-  resource_previousMetadata_blockNumber: BigInt! # uint64
+  resourceId: BigInt! # uint256
+  resourceName: String! # string
+  resourceType: String! # string
+  resourceVersion: String! # string
+  resourceMediaType: String! # string
+  metadataChainNodeIndex: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
