@@ -93,7 +93,9 @@ impl EthrDidLinkedResourcesResolver {
 #[cfg(test)]
 mod tests {
     use crate::{
-        contracts::{ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, test_utils::get_writer_ethers_client},
+        contracts::{
+            ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, test_utils::get_writer_ethers_client,
+        },
         types::input::ResourceInput,
         utils::did_identity_as_full_did,
     };
@@ -122,7 +124,8 @@ mod tests {
                     content: "hello world".as_bytes().to_vec(),
                 },
             )
-            .await.unwrap();
+            .await
+            .unwrap();
         dbg!(&created_resource);
 
         // resolve exact

@@ -9,7 +9,7 @@ use anoncreds::{
     types::{Presentation, PresentationRequest, RevocationRegistryDefinition},
 };
 
-use crate::anoncreds_method::resolver::EthrDidAnoncredsResolver;
+use did_ethr_anoncreds::resolver::EthrDidAnoncredsResolver;
 
 pub struct Verifier {
     anoncreds_resolver: EthrDidAnoncredsResolver,

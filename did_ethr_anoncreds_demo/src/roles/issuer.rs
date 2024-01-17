@@ -17,11 +17,11 @@ use did_ethr_linked_resources::{
 };
 
 use crate::{
-    anoncreds_method::{
-        ledger_data_transformer::LedgerDataTransformer, registrar::EthrDidAnoncredsRegistrar,
-    },
     ethers_client::EtherSigner,
     utils::{random_id, serde_clone},
+};
+use did_ethr_anoncreds::{
+    ledger_data_transformer::LedgerDataTransformer, registrar::EthrDidAnoncredsRegistrar,
 };
 
 const TAILS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tails");

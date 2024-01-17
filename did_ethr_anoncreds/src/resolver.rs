@@ -5,7 +5,7 @@ use anoncreds::{
 use chrono::{TimeZone, Utc};
 use did_ethr_linked_resources::resolver::EthrDidLinkedResourcesResolver;
 
-use crate::anoncreds_method::ledger_data_transformer::LedgerDataTransformer;
+use crate::ledger_data_transformer::LedgerDataTransformer;
 
 use super::ledger_data_transformer::{
     status_list_update_ledger_data::StatusListUpdateLedgerData, STATUS_LIST_RESOURCE_TYPE,

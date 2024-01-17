@@ -12,7 +12,7 @@ use anoncreds::{
     },
 };
 
-use crate::anoncreds_method::resolver::EthrDidAnoncredsResolver;
+use did_ethr_anoncreds::resolver::EthrDidAnoncredsResolver;
 
 pub struct Holder {
     anoncreds_resolver: EthrDidAnoncredsResolver,

@@ -1,6 +1,6 @@
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::LedgerDataTransformer;
+use did_ethr_anoncreds::ledger_data_transformer::LedgerDataTransformer;
 
 pub struct JsonLedgerData<T: Serialize + DeserializeOwned>(pub T);
 

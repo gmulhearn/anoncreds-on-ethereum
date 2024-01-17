@@ -9,9 +9,9 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use crate::{
-        contracts::test_utils::get_writer_ethers_client, registrar::EthrDidLinkedResourcesRegistrar,
-        resolver::EthrDidLinkedResourcesResolver, types::input::ResourceInput,
-        utils::did_identity_as_full_did,
+        contracts::test_utils::get_writer_ethers_client,
+        registrar::EthrDidLinkedResourcesRegistrar, resolver::EthrDidLinkedResourcesResolver,
+        types::input::ResourceInput, utils::did_identity_as_full_did,
     };
 
     #[tokio::test]

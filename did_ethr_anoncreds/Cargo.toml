@@ -1,5 +1,5 @@
 [package]
-name = "did_ethr_anoncreds_demo"
+name = "did_ethr_anoncreds"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,7 +9,6 @@ thegraph = []
 
 [dependencies]
 did_ethr_linked_resources = { path = "../did_ethr_linked_resources" }
-did_ethr_anoncreds = { path = "../did_ethr_anoncreds" }
 serde = "1"
 serde_json = "1"
 anoncreds = { git = "https://github.com/hyperledger/anoncreds-rs.git", tag = "v0.1.0" }

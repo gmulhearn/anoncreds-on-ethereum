@@ -1,5 +1,5 @@
-pub mod anoncreds_method;
 pub mod ethers_client;
+pub mod json_ledger_data_transformer;
 pub mod roles;
 pub mod utils;
 
@@ -12,8 +12,8 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
-    anoncreds_method::ledger_data_transformer::json_ledger_data_transformer::JsonLedgerData,
     ethers_client::get_writer_ethers_client,
+    json_ledger_data_transformer::JsonLedgerData,
     roles::{
         holder::Holder,
         issuer::{CredRevocationUpdateType, Issuer},

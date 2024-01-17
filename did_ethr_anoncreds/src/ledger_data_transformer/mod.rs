@@ -1,5 +1,4 @@
 pub mod anoncreds_primitives_ledger_data_transformers;
-pub mod json_ledger_data_transformer;
 pub mod status_list_update_ledger_data;
 
 pub trait LedgerDataTransformer {
