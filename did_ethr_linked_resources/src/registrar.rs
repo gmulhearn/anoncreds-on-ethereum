@@ -3,7 +3,8 @@ use std::{error::Error, sync::Arc};
 use ethers::providers::Middleware;
 
 use crate::{
-    contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, types::output::Resource,
+    config::ContractNetworkConfig, contracts::ethr_dlr_registry::EthrDIDLinkedResourcesRegistry,
+    types::output::Resource,
 };
 
 use super::{resolver::EthrDidLinkedResourcesResolver, types::input::ResourceInput};
@@ -18,10 +19,10 @@ impl<S> EthrDidLinkedResourcesRegistrar<S>
 where
     S: Middleware,
 {
-    pub fn new(signer: Arc<S>) -> Self {
+    pub fn new(signer: Arc<S>, config: ContractNetworkConfig) -> Self {
         Self {
-            registry: EthrDIDLinkedResourcesRegistry,
-            resolver: EthrDidLinkedResourcesResolver::new(),
+            registry: EthrDIDLinkedResourcesRegistry::new(config.clone()),
+            resolver: EthrDidLinkedResourcesResolver::new(config),
             signer,
         }
     }

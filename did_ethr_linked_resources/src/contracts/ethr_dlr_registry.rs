@@ -4,38 +4,46 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use ethers::abi::RawLog;
 use ethers::contract::EthEvent;
+use ethers::providers::{Http, Provider};
 use ethers::types::H160;
 use ethers::{abi::Address, providers::Middleware, types::U256};
 
+use crate::config::ContractNetworkConfig;
 use crate::types::input::ResourceInput;
 use crate::utils::full_did_into_did_identity;
-
-use super::get_read_only_ethers_client;
 
 // Include generated contract types from build script
 include!(concat!(env!("OUT_DIR"), "/ethr_dlr_registry_contract.rs"));
 
-// Address of the `EthrDIDLinkedResourcesRegistry.sol` smart contract to use
-// (should copy and paste the address value after a hardhat deploy script)
-pub const ETHR_DLR_REGISTRY_ADDRESS: &str = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-
-pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> EthrDLRRegistry<T> {
-    EthrDLRRegistry::new(
-        ETHR_DLR_REGISTRY_ADDRESS.parse::<Address>().unwrap(),
-        client,
-    )
+pub struct EthrDIDLinkedResourcesRegistry {
+    contract_address: Address,
+    rpc_url: String,
 }
 
-pub struct EthrDIDLinkedResourcesRegistry;
-
 impl EthrDIDLinkedResourcesRegistry {
+    pub fn new(config: ContractNetworkConfig) -> Self {
+        Self {
+            contract_address: config.contract_address.parse().unwrap(),
+            rpc_url: config.rpc_url,
+        }
+    }
+
+    fn contract_with_client<T: Middleware>(&self, client: Arc<T>) -> EthrDLRRegistry<T> {
+        EthrDLRRegistry::new(self.contract_address.clone(), client)
+    }
+
+    fn get_read_only_ethers_client(&self) -> Arc<impl Middleware> {
+        let provider = Provider::<Http>::try_from(&self.rpc_url).unwrap();
+        Arc::new(provider)
+    }
+
     pub async fn create_or_update_resource(
         &self,
         signer: Arc<impl Middleware>,
         did: &str,
         resource: ResourceInput,
     ) -> Result<NewResourceFilter, Box<dyn Error>> {
-        let contract = contract_with_client(signer);
+        let contract = self.contract_with_client(signer);
 
         let did_identity = full_did_into_did_identity(did);
 
@@ -83,12 +91,13 @@ impl EthrDIDLinkedResourcesRegistry {
         did_identity: H160,
         resource_id: U256,
     ) -> Option<NewResourceFilter> {
-        let client = get_read_only_ethers_client();
-        let contract = contract_with_client(client);
+        let client = self.get_read_only_ethers_client();
+        let contract = self.contract_with_client(client);
 
         let mut precise_filter = contract.new_resource_filter();
         precise_filter.filter = precise_filter
             .filter
+            .address(self.contract_address)
             .topic1(did_identity)
             .topic2(resource_id)
             .from_block(0);
@@ -111,8 +120,8 @@ impl EthrDIDLinkedResourcesRegistry {
         resource_type: &str,
         epoch: u64,
     ) -> Option<(NewResourceFilter, ResourceVersionMetadataChainNode)> {
-        let client = get_read_only_ethers_client();
-        let contract = contract_with_client(client.clone());
+        let client = self.get_read_only_ethers_client();
+        let contract = self.contract_with_client(client.clone());
 
         let did_identity = full_did_into_did_identity(did);
 
@@ -153,8 +162,8 @@ impl EthrDIDLinkedResourcesRegistry {
         resource_type: &str,
         index: u64,
     ) -> ResourceVersionMetadataChainNode {
-        let client = get_read_only_ethers_client();
-        let contract = contract_with_client(client.clone());
+        let client = self.get_read_only_ethers_client();
+        let contract = self.contract_with_client(client.clone());
 
         let did_identity = full_did_into_did_identity(did);
 
@@ -176,7 +185,8 @@ impl EthrDIDLinkedResourcesRegistry {
 mod tests {
 
     use crate::{
-        contracts::test_utils::get_writer_ethers_client, types::input::ResourceInput,
+        contracts::test_utils::{get_writer_ethers_client, TestConfig},
+        types::input::ResourceInput,
         utils::did_identity_as_full_did,
     };
 
@@ -184,10 +194,12 @@ mod tests {
 
     #[tokio::test]
     async fn testtest() {
-        let signer = get_writer_ethers_client(0);
+        let conf = TestConfig::load();
+
+        let signer = get_writer_ethers_client(0, &conf);
         let did = did_identity_as_full_did(&signer.address());
 
-        let registry = EthrDIDLinkedResourcesRegistry;
+        let registry = EthrDIDLinkedResourcesRegistry::new(conf.get_dlr_network_config());
 
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";

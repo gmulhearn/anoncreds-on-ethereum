@@ -17,6 +17,7 @@ use did_ethr_linked_resources::{
 };
 
 use crate::{
+    config::DemoConfig,
     ethers_client::EtherSigner,
     utils::{random_id, serde_clone},
 };
@@ -68,9 +69,15 @@ pub enum CredRevocationUpdateType {
 }
 
 impl Issuer {
-    pub async fn bootstrap(issuer_did: String, signer: Arc<EtherSigner>) -> Self {
-        let dlr_registrar = EthrDidLinkedResourcesRegistrar::new(signer.clone());
-        let anoncreds_registrar = EthrDidAnoncredsRegistrar::new(signer.clone());
+    pub async fn bootstrap(
+        issuer_did: String,
+        signer: Arc<EtherSigner>,
+        conf: &DemoConfig,
+    ) -> Self {
+        let dlr_registrar =
+            EthrDidLinkedResourcesRegistrar::new(signer.clone(), conf.get_dlr_network_config());
+        let anoncreds_registrar =
+            EthrDidAnoncredsRegistrar::new(signer.clone(), conf.get_dlr_network_config());
 
         let attr_names: &[&str] = &["name", "age"];
 
@@ -164,7 +171,7 @@ impl Issuer {
         Self {
             anoncreds_registrar,
             dlr_registrar,
-            did_registry: DidEthRegistry,
+            did_registry: DidEthRegistry::new(conf.get_did_ethr_network_config()),
             issuer_did,
             signer,
             demo_data: IssuerDemoData {

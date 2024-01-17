@@ -37,7 +37,7 @@ Not currently supported features include:
 * ❌ Query with just `resourceName` or `resourceType` parameters
 * ❌ Query with the following parameters: `resourceVersionId`/`versionId`, `linkedResource`, `resourceMetadata`, `latestResourceVersion`, `allResourceVersions`
 
-# Other Planned Features
-* 🚧 Configurable ledger (currently assuming localhost)
+# Other Features
+* ✅ Configurable ledger
 * 🚧 **Needs research:** Official integration with `did:ethr` OR creation of proxy DID method (e.g. `did:ethrplus`) 
 

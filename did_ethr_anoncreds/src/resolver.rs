@@ -3,7 +3,9 @@ use anoncreds::{
     types::{RevocationRegistryDefinition, RevocationStatusList},
 };
 use chrono::{TimeZone, Utc};
-use did_ethr_linked_resources::resolver::EthrDidLinkedResourcesResolver;
+use did_ethr_linked_resources::{
+    config::ContractNetworkConfig, resolver::EthrDidLinkedResourcesResolver,
+};
 
 use crate::ledger_data_transformer::LedgerDataTransformer;
 
@@ -16,9 +18,9 @@ pub struct EthrDidAnoncredsResolver {
 }
 
 impl EthrDidAnoncredsResolver {
-    pub fn new() -> Self {
+    pub fn new(dlr_config: ContractNetworkConfig) -> Self {
         Self {
-            dlr_resolver: EthrDidLinkedResourcesResolver::new(),
+            dlr_resolver: EthrDidLinkedResourcesResolver::new(dlr_config),
         }
     }
 

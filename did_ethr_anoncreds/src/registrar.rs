@@ -6,7 +6,7 @@ use anoncreds::{
 };
 use did_ethr_linked_resources::{
     registrar::EthrDidLinkedResourcesRegistrar,
-    types::{input::ResourceInput, output::Resource},
+    types::{input::ResourceInput, output::Resource}, config::ContractNetworkConfig,
 };
 use ethers::providers::Middleware;
 
@@ -24,9 +24,9 @@ impl<S> EthrDidAnoncredsRegistrar<S>
 where
     S: Middleware,
 {
-    pub fn new(signer: Arc<S>) -> Self {
+    pub fn new(signer: Arc<S>, dlr_config: ContractNetworkConfig) -> Self {
         Self {
-            dlr_registrar: EthrDidLinkedResourcesRegistrar::new(signer),
+            dlr_registrar: EthrDidLinkedResourcesRegistrar::new(signer, dlr_config),
         }
     }
 

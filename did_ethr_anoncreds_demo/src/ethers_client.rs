@@ -8,12 +8,11 @@ use ethers::{
     signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
 };
 
-// Ethereum RPC of the network to use (defaults to the hardhat local network)
-const REGISTRY_RPC: &str = "http://localhost:8545";
+use crate::config::DemoConfig;
 
 pub type EtherSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
-pub fn get_writer_ethers_client(id: u32) -> Arc<EtherSigner> {
+pub fn get_writer_ethers_client(id: u32, config: &DemoConfig) -> Arc<EtherSigner> {
     dotenv().ok();
 
     let seed = env::var("MNEMONIC").unwrap();
@@ -24,8 +23,8 @@ pub fn get_writer_ethers_client(id: u32) -> Arc<EtherSigner> {
         .unwrap()
         .build()
         .unwrap()
-        .with_chain_id(31337 as u64);
+        .with_chain_id(config.chain_id);
 
-    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
+    let provider = Provider::<Http>::try_from(&config.rpc_url).unwrap();
     Arc::new(SignerMiddleware::new(provider, wallet))
 }

@@ -11,6 +11,8 @@ use anoncreds::{
 
 use did_ethr_anoncreds::resolver::EthrDidAnoncredsResolver;
 
+use crate::config::DemoConfig;
+
 pub struct Verifier {
     anoncreds_resolver: EthrDidAnoncredsResolver,
     protocol_data: VerifierProtocolFlowData,
@@ -22,8 +24,8 @@ pub struct VerifierProtocolFlowData {
 }
 
 impl Verifier {
-    pub fn bootstrap() -> Self {
-        let resolver = EthrDidAnoncredsResolver::new();
+    pub fn bootstrap(conf: &DemoConfig) -> Self {
+        let resolver = EthrDidAnoncredsResolver::new(conf.get_dlr_network_config());
 
         Verifier {
             anoncreds_resolver: resolver,

@@ -4,22 +4,25 @@ use chrono::Utc;
 use ethers::types::U256;
 
 use crate::{
+    config::ContractNetworkConfig,
     contracts::ethr_dlr_registry::{
         EthrDIDLinkedResourcesRegistry, NewResourceFilter, ResourceVersionMetadataChainNode,
     },
-    subgraph::{self},
     types::{output::Resource, query::ResourceQuery},
     utils::did_identity_as_full_did,
 };
+
+#[cfg(feature = "thegraph")]
+use crate::subgraph::{self};
 
 pub struct EthrDidLinkedResourcesResolver {
     registry: EthrDIDLinkedResourcesRegistry,
 }
 
 impl EthrDidLinkedResourcesResolver {
-    pub fn new() -> Self {
+    pub fn new(config: ContractNetworkConfig) -> Self {
         Self {
-            registry: EthrDIDLinkedResourcesRegistry,
+            registry: EthrDIDLinkedResourcesRegistry::new(config),
         }
     }
 
@@ -113,6 +116,7 @@ impl EthrDidLinkedResourcesResolver {
         Some(Resource::from((resource, metadata_node)))
     }
 
+    #[cfg(feature = "thegraph")]
     async fn resolve_resource_by_name_and_type_at_epoch_via_subgraph(
         &self,
         did: &str,
@@ -166,7 +170,8 @@ impl EthrDidLinkedResourcesResolver {
 mod tests {
     use crate::{
         contracts::{
-            ethr_dlr_registry::EthrDIDLinkedResourcesRegistry, test_utils::get_writer_ethers_client,
+            ethr_dlr_registry::EthrDIDLinkedResourcesRegistry,
+            test_utils::{get_writer_ethers_client, TestConfig},
         },
         types::input::ResourceInput,
         utils::did_identity_as_full_did,
@@ -174,15 +179,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_exact_uri() {
-        let resolver = super::EthrDidLinkedResourcesResolver::new();
+        let conf = TestConfig::load();
+
+        let resolver = super::EthrDidLinkedResourcesResolver::new(conf.get_dlr_network_config());
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";
 
         // create resource
-        let signer = get_writer_ethers_client(0);
+        let signer = get_writer_ethers_client(0, &conf);
         let did = did_identity_as_full_did(&signer.address());
 
-        let registry = EthrDIDLinkedResourcesRegistry;
+        let registry = EthrDIDLinkedResourcesRegistry::new(conf.get_dlr_network_config());
 
         let created_resource = registry
             .create_or_update_resource(

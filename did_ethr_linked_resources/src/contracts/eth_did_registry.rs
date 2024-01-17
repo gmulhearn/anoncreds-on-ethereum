@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::{abi::Address, providers::Middleware, types::H160};
 
-use crate::utils::full_did_into_did_identity;
+use crate::{config::ContractNetworkConfig, utils::full_did_into_did_identity};
 
 // Include generated contract types from build script
 include!(concat!(
@@ -10,19 +10,25 @@ include!(concat!(
     "/ethereum_did_registry_contract.rs"
 ));
 
-// Address of the `EthereumDIDRegistry` smart contract to use
-// (should copy and paste the address value after a hardhat deploy script)
-pub const DID_REGISTRY_ADDRESS: &str = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-
-pub fn contract_with_client<T: Middleware>(client: Arc<T>) -> EthereumDIDRegistry<T> {
-    EthereumDIDRegistry::new(DID_REGISTRY_ADDRESS.parse::<Address>().unwrap(), client)
+pub struct DidEthRegistry {
+    contract_address: Address,
+    _rpc_url: String,
 }
 
-pub struct DidEthRegistry;
-
 impl DidEthRegistry {
+    pub fn new(config: ContractNetworkConfig) -> Self {
+        Self {
+            contract_address: config.contract_address.parse().unwrap(),
+           _rpc_url: config.rpc_url,
+        }
+    }
+
+    fn contract_with_client<T: Middleware>(&self, client: Arc<T>) -> EthereumDIDRegistry<T> {
+        EthereumDIDRegistry::new(self.contract_address.clone(), client)
+    }
+
     pub async fn change_owner(&self, signer: Arc<impl Middleware>, did: &str, new_owner: H160) {
-        let contract = contract_with_client(signer);
+        let contract = self.contract_with_client(signer);
 
         let did_identity = full_did_into_did_identity(did);
 

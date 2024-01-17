@@ -1,17 +1,5 @@
-use std::sync::Arc;
-
-use ethers::providers::{Http, Middleware, Provider};
-
 pub mod eth_did_registry;
 pub mod ethr_dlr_registry;
-
-// Ethereum RPC of the network to use (defaults to the hardhat local network)
-pub const REGISTRY_RPC: &str = "http://localhost:8545";
-
-pub fn get_read_only_ethers_client() -> Arc<impl Middleware> {
-    let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
-    Arc::new(provider)
-}
 
 #[cfg(test)]
 pub mod test_utils {
@@ -25,9 +13,40 @@ pub mod test_utils {
         signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
     };
 
-    use super::REGISTRY_RPC;
+    use crate::config::ContractNetworkConfig;
+
+    pub struct TestConfig {
+        pub rpc_url: String,
+        pub dlr_contract_address: String,
+        pub chain_id: u64,
+    }
+
+    impl TestConfig {
+        pub fn load() -> Self {
+            dotenv().ok();
+
+            let rpc_url = env::var("RPC_URL").unwrap();
+            let dlr_contract_address = env::var("DLR_CONTRACT_ADDRESS").unwrap();
+            let chain_id = env::var("CHAIN_ID").unwrap().parse().unwrap();
+
+            Self {
+                rpc_url,
+                dlr_contract_address,
+                chain_id,
+            }
+        }
+
+        pub fn get_dlr_network_config(&self) -> ContractNetworkConfig {
+            ContractNetworkConfig {
+                rpc_url: self.rpc_url.clone(),
+                contract_address: self.dlr_contract_address.clone(),
+            }
+        }
+    }
+
     pub fn get_writer_ethers_client(
         id: u32,
+        conf: &TestConfig,
     ) -> Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>> {
         dotenv().ok();
 
@@ -39,9 +58,9 @@ pub mod test_utils {
             .unwrap()
             .build()
             .unwrap()
-            .with_chain_id(31337 as u64);
+            .with_chain_id(conf.chain_id);
 
-        let provider = Provider::<Http>::try_from(REGISTRY_RPC).unwrap();
+        let provider = Provider::<Http>::try_from(&conf.rpc_url).unwrap();
         Arc::new(SignerMiddleware::new(provider, wallet))
     }
 }

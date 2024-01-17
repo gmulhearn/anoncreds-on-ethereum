@@ -1,3 +1,4 @@
+pub mod config;
 pub mod ethers_client;
 pub mod json_ledger_data_transformer;
 pub mod roles;
@@ -12,6 +13,7 @@ use std::{
 use tokio::time::sleep;
 
 use crate::{
+    config::DemoConfig,
     ethers_client::get_writer_ethers_client,
     json_ledger_data_transformer::JsonLedgerData,
     roles::{
@@ -28,22 +30,24 @@ async fn main() {
 }
 
 async fn full_demo() {
+    let conf = DemoConfig::load();
+
     // ------ SETUP ISSUER DID ------
-    let initial_signer = get_writer_ethers_client(0);
+    let initial_signer = get_writer_ethers_client(0, &conf);
     let issuer_did = did_identity_as_full_did(&initial_signer.address());
 
     // ------ SETUP DEMO AGENTS ------
     println!("Holder: setting up...");
-    let mut holder = Holder::bootstrap().await;
+    let mut holder = Holder::bootstrap(&conf).await;
     println!("Issuer: setting up...");
-    let mut issuer = Issuer::bootstrap(issuer_did, initial_signer).await;
+    let mut issuer = Issuer::bootstrap(issuer_did, initial_signer, &conf).await;
     println!("Verifier: setting up...");
-    let mut verifier = Verifier::bootstrap();
+    let mut verifier = Verifier::bootstrap(&conf);
 
     prompt_input_to_continue();
 
     // auth control demo
-    did_controller_auth_demo(&mut issuer).await;
+    did_controller_auth_demo(&mut issuer, &conf).await;
     prompt_input_to_continue();
 
     // issue the cred to the holder
@@ -87,7 +91,7 @@ async fn full_demo() {
     prompt_input_to_continue();
 }
 
-async fn did_controller_auth_demo(issuer: &mut Issuer) {
+async fn did_controller_auth_demo(issuer: &mut Issuer, conf: &DemoConfig) {
     println!("\n########## AUTH ###########\n");
 
     let did = issuer.issuer_did.clone();
@@ -106,7 +110,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     println!("success: {}", res.is_ok());
 
     // change controller and write with new controller
-    let new_controller = get_writer_ethers_client(1);
+    let new_controller = get_writer_ethers_client(1, conf);
 
     println!(
         "changing controller for DID {did} to: {:?}",
@@ -127,7 +131,7 @@ async fn did_controller_auth_demo(issuer: &mut Issuer) {
     println!("success: {}", res.is_ok());
 
     // try writing with the incorrect controller (new random controller)
-    let wrong_controller = get_writer_ethers_client(2);
+    let wrong_controller = get_writer_ethers_client(2, conf);
     println!(
         "attempting to write for DID {did}, using incorrect controller: {:?}",
         wrong_controller.address()

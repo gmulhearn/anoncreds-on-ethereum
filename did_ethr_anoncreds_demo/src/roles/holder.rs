@@ -14,6 +14,8 @@ use anoncreds::{
 
 use did_ethr_anoncreds::resolver::EthrDidAnoncredsResolver;
 
+use crate::config::DemoConfig;
+
 pub struct Holder {
     anoncreds_resolver: EthrDidAnoncredsResolver,
     link_secret: LinkSecret,
@@ -28,9 +30,9 @@ pub struct HolderProtocolFlowData {
 }
 
 impl Holder {
-    pub async fn bootstrap() -> Self {
+    pub async fn bootstrap(conf: &DemoConfig) -> Self {
         let link_secret = anoncreds::prover::create_link_secret().unwrap();
-        let resolver = EthrDidAnoncredsResolver::new();
+        let resolver = EthrDidAnoncredsResolver::new(conf.get_dlr_network_config());
 
         Holder {
             anoncreds_resolver: resolver,

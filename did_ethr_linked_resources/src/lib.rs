@@ -1,6 +1,8 @@
+pub mod config;
 pub mod contracts;
 pub mod registrar;
 pub mod resolver;
+#[cfg(feature = "thegraph")]
 mod subgraph;
 pub mod types;
 pub mod utils;
@@ -10,18 +12,22 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use crate::{
-        contracts::test_utils::get_writer_ethers_client,
-        registrar::EthrDidLinkedResourcesRegistrar, resolver::EthrDidLinkedResourcesResolver,
-        types::input::ResourceInput, utils::did_identity_as_full_did,
+        contracts::test_utils::{get_writer_ethers_client, TestConfig},
+        registrar::EthrDidLinkedResourcesRegistrar,
+        resolver::EthrDidLinkedResourcesResolver,
+        types::input::ResourceInput,
+        utils::did_identity_as_full_did,
     };
 
     #[tokio::test]
     async fn test_resolve_versions_by_time() {
-        let signer = get_writer_ethers_client(0);
+        let conf = TestConfig::load();
+
+        let signer = get_writer_ethers_client(0, &conf);
         let did = did_identity_as_full_did(&signer.address());
 
-        let resolver = EthrDidLinkedResourcesResolver::new();
-        let registrar = EthrDidLinkedResourcesRegistrar::new(signer);
+        let resolver = EthrDidLinkedResourcesResolver::new(conf.get_dlr_network_config());
+        let registrar = EthrDidLinkedResourcesRegistrar::new(signer, conf.get_dlr_network_config());
 
         let resource_name = &format!("foo{}", uuid::Uuid::new_v4());
         let resource_type = "bar";
