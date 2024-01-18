@@ -39,5 +39,6 @@ Not currently supported features include:
 
 # Other Features
 * ✅ Configurable ledger
-* 🚧 **Needs research:** Official integration with `did:ethr` OR creation of proxy DID method (e.g. `did:ethrplus`) 
+* 🚧 **Needs research:** Official integration with `did:ethr` OR creation of proxy DID method (e.g. `did:ethrplus`)
+* 🚧 **Needs research:** Investigate IPFS for storage of content (only metadata on chain)
 
