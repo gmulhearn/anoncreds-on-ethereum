@@ -34,7 +34,7 @@ async fn full_demo() {
 
     // ------ SETUP ISSUER DID ------
     let initial_signer = get_writer_ethers_client(0, &conf);
-    let issuer_did = did_identity_as_full_did(&initial_signer.address(), &conf.did_ethr_sub_method);
+    let issuer_did = did_identity_as_full_did(&initial_signer.address(), conf.chain_id);
 
     // ------ SETUP DEMO AGENTS ------
     println!("Holder: setting up...");
@@ -47,7 +47,14 @@ async fn full_demo() {
     prompt_input_to_continue();
 
     // auth control demo
-    did_controller_auth_demo(&mut issuer, &conf).await;
+    if conf.chain_id == 31337 {
+        // only if local chain, as the demo assumes funds in several
+        // different accounts derived from the same mnemonic
+        did_controller_auth_demo(&mut issuer, &conf).await;
+        return;
+    } else {
+        println!("AUTH demo assumes local chain 31337... skipping");
+    }
     prompt_input_to_continue();
 
     // issue the cred to the holder

@@ -25,7 +25,8 @@ To setup and run the demo:
 3. within `smart-contracts`: use hardhat to run a local ledger in a seperate terminal: `npx hardhat node`
 4. within `smart-contracts`: use hardhat to deploy the `EthrDIDLinkedResourcesRegistry` & `EthereumDIDRegistry` contract to the local ledger: `npx hardhat run --network localhost scripts/deploy.ts`
    - Lookup value `Contract address` in the output. You need to provide in the next step as env variable.
-5. within `did_ethr_anoncreds_demo`: run the demo!: `RESOURCES_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run`
+5. Update the output contract addresses with the contract addresses in your `.env` file
+6. within `did_ethr_anoncreds_demo`: run the demo!: `cargo run`
 
 ## Demo with The Graph
 As discussed in the [did:ethr DID Linked Resource documentation](./did_ethr_linked_resources/README.md), the DID Linked Resource resolver can be ran in "The Graph" mode. Running in this manner allows the resolver to retrieve resources more effectively, since it now relies on dedicated indexers.
@@ -35,7 +36,7 @@ Within [the subgraph directory](./example-subgraph/) is a subgraph project which
 When the subgraph is deployed, this demo can be ran in an alternative mode to utilize "The Graph" indexing.
 
 ## Local Graph Setup and Demo
-1. complete steps 1-4 of [above](#run)
+1. complete steps 1-5 of [above](#run)
 2. clone the [graph-node repo](https://github.com/graphprotocol/graph-node)
 3. run the graph-node via docker compose (`cd docker && docker compose up`)
 4. within the `example-subgraph`: 
@@ -43,7 +44,7 @@ When the subgraph is deployed, this demo can be ran in an alternative mode to ut
     2. codegen `npm run codegen`
     3. create the local subgraph: `npm run create-local`
     4. deploy the local subgraph: `npm run deploy-local`
-5. within the `did_ethr_anoncreds_demo`: run the demo with the graph feature enabled!: `RESOURCES_REGISTRY_ADDRESS=<the_value_from_previous_step> cargo run --features thegraph`
+5. within the `did_ethr_anoncreds_demo`: run the demo with the graph feature enabled!: `cargo run --features thegraph`
 
 
 # Related

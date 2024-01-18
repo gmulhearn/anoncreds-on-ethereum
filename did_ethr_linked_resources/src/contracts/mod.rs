@@ -13,13 +13,12 @@ pub mod test_utils {
         signers::{coins_bip39::English, MnemonicBuilder, Signer, Wallet},
     };
 
-    use crate::config::{ContractNetworkConfig, DidEthrSubMethod};
+    use crate::config::ContractNetworkConfig;
 
     pub struct TestConfig {
         pub rpc_url: String,
         pub dlr_contract_address: String,
         pub chain_id: u64,
-        pub did_ethr_sub_method: DidEthrSubMethod,
     }
 
     impl TestConfig {
@@ -34,7 +33,6 @@ pub mod test_utils {
                 rpc_url,
                 dlr_contract_address,
                 chain_id,
-                did_ethr_sub_method: DidEthrSubMethod(String::from("test")),
             }
         }
 
@@ -42,7 +40,7 @@ pub mod test_utils {
             ContractNetworkConfig {
                 rpc_url: self.rpc_url.clone(),
                 contract_address: self.dlr_contract_address.clone(),
-                did_ethr_sub_method: self.did_ethr_sub_method.clone()
+                chain_id: self.chain_id,
             }
         }
     }

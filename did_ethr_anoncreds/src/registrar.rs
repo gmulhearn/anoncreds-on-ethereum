@@ -5,8 +5,9 @@ use anoncreds::{
     types::{RevocationRegistryDefinition, RevocationStatusList},
 };
 use did_ethr_linked_resources::{
+    config::ContractNetworkConfig,
     registrar::EthrDidLinkedResourcesRegistrar,
-    types::{input::ResourceInput, output::Resource}, config::ContractNetworkConfig,
+    types::{input::ResourceInput, output::Resource},
 };
 use ethers::providers::Middleware;
 

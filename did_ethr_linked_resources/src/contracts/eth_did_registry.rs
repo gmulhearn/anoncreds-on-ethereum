@@ -19,7 +19,7 @@ impl DidEthRegistry {
     pub fn new(config: ContractNetworkConfig) -> Self {
         Self {
             contract_address: config.contract_address.parse().unwrap(),
-           _rpc_url: config.rpc_url,
+            _rpc_url: config.rpc_url,
         }
     }
 

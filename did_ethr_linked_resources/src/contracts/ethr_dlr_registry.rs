@@ -197,7 +197,7 @@ mod tests {
         let conf = TestConfig::load();
 
         let signer = get_writer_ethers_client(0, &conf);
-        let did = did_identity_as_full_did(&signer.address(), &conf.did_ethr_sub_method);
+        let did = did_identity_as_full_did(&signer.address(), conf.chain_id);
 
         let registry = EthrDIDLinkedResourcesRegistry::new(conf.get_dlr_network_config());
 
