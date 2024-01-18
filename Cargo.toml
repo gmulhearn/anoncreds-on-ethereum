@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "did_ethr_linked_resources",
+    "did_ethr_anoncreds_demo",
+    "did_ethr_anoncreds",
+]

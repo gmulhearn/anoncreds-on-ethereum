@@ -1,0 +1,31 @@
+[package]
+name = "did_ethr_linked_resources"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# enable feature to use local subgraph queries
+thegraph = []
+
+[dependencies]
+serde = "1"
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+
+ethers = "2"
+dotenv = "0.15"
+anyhow = "1.0.75"
+reqwest = "0.11"
+hex = "0.4.3"
+chrono = "0.4.31"
+url = "2.5.0"
+urlencoding = "2.1.3"
+
+[build-dependencies]
+ethers = "2"
+
+[dev-dependencies]
+# Ethers' async features rely upon the Tokio async runtime.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

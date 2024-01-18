@@ -1,0 +1,31 @@
+[package]
+name = "did_ethr_anoncreds"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# enable feature to use local subgraph queries
+thegraph = ["did_ethr_linked_resources/thegraph"]
+
+[dependencies]
+did_ethr_linked_resources = { path = "../did_ethr_linked_resources" }
+serde = "1"
+serde_json = "1"
+anoncreds = { git = "https://github.com/hyperledger/anoncreds-rs.git", tag = "v0.1.0" }
+ursa = { version = "0.3.7", default-features = false, features = [
+    "cl_native",
+    "serde",
+] }
+uuid = { version = "1", features = ["v4"] }
+
+ethers = "2"
+# Ethers' async features rely upon the Tokio async runtime.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+dotenv = "0.15"
+bitvec = "1.0.1"
+anyhow = "1.0.75"
+reqwest = "0.11"
+hex = "0.4.3"
+chrono = "0.4.31"
+url = "2.5.0"
+urlencoding = "2.1.3"

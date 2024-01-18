@@ -1,0 +1,14 @@
+type NewResource @entity(immutable: true) {
+  id: Bytes!
+  content: Bytes!
+  didIdentity: Bytes! # address
+  resourceId: BigInt! # uint256
+  resourceName: String! # string
+  resourceType: String! # string
+  resourceVersion: String! # string
+  resourceMediaType: String! # string
+  metadataChainNodeIndex: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
