@@ -191,7 +191,9 @@ impl Issuer {
     }
 
     pub fn change_signer(&mut self, new_signer: Arc<EtherSigner>) {
-        self.signer = new_signer;
+        self.signer = new_signer.clone();
+        self.anoncreds_registrar.change_signer(new_signer.clone());
+        self.dlr_registrar.change_signer(new_signer);
     }
 
     pub async fn rotate_did_controller(&self, new_controller: &Arc<EtherSigner>) {

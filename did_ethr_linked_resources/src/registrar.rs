@@ -29,6 +29,10 @@ where
         }
     }
 
+    pub fn change_signer(&mut self, new_signer: Arc<S>) {
+        self.signer = new_signer;
+    }
+
     pub async fn create_resource(
         &self,
         did: &str,

@@ -51,7 +51,6 @@ async fn full_demo() {
         // only if local chain, as the demo assumes funds in several
         // different accounts derived from the same mnemonic
         did_controller_auth_demo(&mut issuer, &conf).await;
-        return;
     } else {
         println!("AUTH demo assumes local chain 31337... skipping");
     }

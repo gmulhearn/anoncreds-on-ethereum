@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use chrono::Utc;
+#[cfg(feature = "thegraph")]
 use ethers::types::U256;
 
 use crate::{

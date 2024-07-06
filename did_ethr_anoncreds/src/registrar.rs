@@ -31,6 +31,10 @@ where
         }
     }
 
+    pub fn change_signer(&mut self, new_signer: Arc<S>) {
+        self.dlr_registrar.change_signer(new_signer);
+    }
+
     pub async fn write_schema(&self, issuer_did: &str, schema: Schema) -> Resource {
         self.dlr_registrar
             .create_resource(
